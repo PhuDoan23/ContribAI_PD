@@ -96,6 +96,30 @@ class StorageConfig(BaseModel):
         return Path(self.db_path).expanduser()
 
 
+class SchedulerConfig(BaseModel):
+    """Scheduler configuration for cron-based runs."""
+
+    enabled: bool = False
+    cron: str = "0 */6 * * *"  # every 6 hours
+    timezone: str = "UTC"
+    max_concurrent: int = 3
+
+
+class WebConfig(BaseModel):
+    """Web dashboard configuration."""
+
+    host: str = "127.0.0.1"
+    port: int = 8787
+    enabled: bool = True
+
+
+class PipelineConfig(BaseModel):
+    """Pipeline execution configuration."""
+
+    max_concurrent_repos: int = 3
+    timeout_per_repo_sec: int = 300
+
+
 class ContribAIConfig(BaseModel):
     """Root configuration for ContribAI."""
 
@@ -105,6 +129,9 @@ class ContribAIConfig(BaseModel):
     contribution: ContributionConfig = Field(default_factory=ContributionConfig)
     discovery: DiscoveryConfig = Field(default_factory=DiscoveryConfig)
     storage: StorageConfig = Field(default_factory=StorageConfig)
+    scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
+    web: WebConfig = Field(default_factory=WebConfig)
+    pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
 
 
 def load_config(path: str | Path | None = None) -> ContribAIConfig:

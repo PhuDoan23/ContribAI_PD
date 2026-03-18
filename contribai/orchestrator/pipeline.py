@@ -6,6 +6,7 @@ discover → analyze → generate → PR.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 
@@ -105,7 +106,9 @@ class ContribPipeline:
         criteria: DiscoveryCriteria | None = None,
         dry_run: bool = False,
     ) -> PipelineResult:
-        """Run the full pipeline: discover → analyze → generate → PR.
+        """Run the full pipeline: discover -> analyze -> generate -> PR.
+
+        Processes multiple repos in parallel using asyncio.Semaphore.
 
         Args:
             criteria: Optional custom discovery criteria
@@ -120,11 +123,14 @@ class ContribPipeline:
             today_prs = await self._memory.get_today_pr_count()
             remaining_prs = self.config.github.max_prs_per_day - today_prs
             if remaining_prs <= 0 and not dry_run:
-                logger.warning("Daily PR limit reached (%d)", self.config.github.max_prs_per_day)
+                logger.warning(
+                    "Daily PR limit reached (%d)",
+                    self.config.github.max_prs_per_day,
+                )
                 return result
 
             # 1. Discover repos
-            logger.info("🔍 Discovering repositories...")
+            logger.info("Discovering repositories...")
             repos = await self._discovery.discover(criteria)
             if not repos:
                 logger.warning("No repositories found matching criteria")
@@ -135,25 +141,46 @@ class ContribPipeline:
             # Limit to max repos per run
             repos = repos[: self.config.github.max_repos_per_run]
 
-            # 2. Process each repo
-            for repo in repos:
-                # Skip if already analyzed recently
-                if await self._memory.has_analyzed(repo.full_name):
-                    logger.info("Skipping %s (already analyzed)", repo.full_name)
-                    continue
+            # 2. Process repos in parallel with semaphore
+            max_conc = self.config.pipeline.max_concurrent_repos
+            sem = asyncio.Semaphore(max_conc)
+            logger.info(
+                "Processing %d repos (max %d concurrent)",
+                len(repos),
+                max_conc,
+            )
 
-                try:
-                    repo_result = await self._process_repo(repo, dry_run, remaining_prs)
-                    result.repos_analyzed += 1
-                    result.findings_total += repo_result.findings_total
-                    result.contributions_generated += repo_result.contributions_generated
-                    result.prs_created += repo_result.prs_created
-                    result.prs.extend(repo_result.prs)
-                    remaining_prs -= repo_result.prs_created
-                except Exception as e:
-                    error = f"Error processing {repo.full_name}: {e}"
-                    logger.error(error)
-                    result.errors.append(error)
+            async def _guarded(
+                repo: Repository,
+            ) -> PipelineResult | None:
+                async with sem:
+                    if await self._memory.has_analyzed(repo.full_name):
+                        logger.info(
+                            "Skipping %s (already analyzed)",
+                            repo.full_name,
+                        )
+                        return None
+                    try:
+                        return await self._process_repo(repo, dry_run, remaining_prs)
+                    except Exception as e:
+                        msg = f"Error processing {repo.full_name}: {e}"
+                        logger.error(msg)
+                        err = PipelineResult()
+                        err.errors.append(msg)
+                        return err
+
+            repo_results = await asyncio.gather(*[_guarded(r) for r in repos])
+
+            # Aggregate results
+            for rr in repo_results:
+                if rr is None:
+                    continue
+                result.repos_analyzed += 1
+                result.findings_total += rr.findings_total
+                result.contributions_generated += rr.contributions_generated
+                result.prs_created += rr.prs_created
+                result.prs.extend(rr.prs)
+                result.errors.extend(rr.errors)
 
             # Log run
             await self._memory.finish_run(

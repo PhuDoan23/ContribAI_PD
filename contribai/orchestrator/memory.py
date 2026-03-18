@@ -213,3 +213,13 @@ class Memory:
         stats["total_runs"] = (await cursor.fetchone())[0]
 
         return stats
+
+    async def get_run_history(self, limit: int = 20) -> list[dict]:
+        """Get recent run history."""
+        cursor = await self._db.execute(
+            "SELECT * FROM run_log ORDER BY started_at DESC LIMIT ?",
+            (limit,),
+        )
+        rows = await cursor.fetchall()
+        cols = [d[0] for d in cursor.description]
+        return [dict(zip(cols, row, strict=False)) for row in rows]

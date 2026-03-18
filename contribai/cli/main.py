@@ -382,10 +382,170 @@ def show_config(ctx):
             f"  Stars: {config.discovery.stars_range}\n\n"
             f"[bold]Analysis[/bold]\n"
             f"  Analyzers: {', '.join(config.analysis.enabled_analyzers)}\n"
-            f"  Threshold: {config.analysis.severity_threshold}",
-            title="⚙️ ContribAI Configuration",
+            f"  Threshold: {config.analysis.severity_threshold}\n\n"
+            f"[bold]Pipeline[/bold]\n"
+            f"  Max concurrent: {config.pipeline.max_concurrent_repos}\n"
+            f"  Timeout/repo: {config.pipeline.timeout_per_repo_sec}s\n\n"
+            f"[bold]Web Dashboard[/bold]\n"
+            f"  Host: {config.web.host}:{config.web.port}\n\n"
+            f"[bold]Scheduler[/bold]\n"
+            f"  Enabled: {config.scheduler.enabled}\n"
+            f"  Cron: {config.scheduler.cron}",
+            title="ContribAI Configuration",
         )
     )
+
+
+@cli.command("serve")
+@click.option("--host", default=None, help="Host to bind to")
+@click.option("--port", default=None, type=int, help="Port")
+@click.pass_context
+def serve(ctx, host, port):
+    """Start the web dashboard server."""
+    config = load_config(ctx.obj["config_path"])
+    if host:
+        config.web.host = host
+    if port:
+        config.web.port = port
+
+    console.print(
+        f"[bold]Starting ContribAI Dashboard[/bold] at http://{config.web.host}:{config.web.port}"
+    )
+
+    from contribai.web.server import run_server
+
+    run_server(config)
+
+
+@cli.command("schedule")
+@click.option("--cron", default=None, help="Cron expression")
+@click.pass_context
+def schedule(ctx, cron):
+    """Start the scheduler daemon for automated runs."""
+    config = load_config(ctx.obj["config_path"])
+    config.scheduler.enabled = True
+    if cron:
+        config.scheduler.cron = cron
+
+    console.print(
+        f"[bold]Starting ContribAI Scheduler[/bold]\n"
+        f"  Cron: {config.scheduler.cron}\n"
+        f"  Timezone: {config.scheduler.timezone}"
+    )
+
+    from contribai.scheduler.scheduler import (
+        ContribScheduler,
+    )
+
+    sched = ContribScheduler(config)
+    sched.start()
+
+
+@cli.command("templates")
+@click.option(
+    "--type",
+    "contrib_type",
+    default=None,
+    help="Filter by contribution type",
+)
+def list_templates(contrib_type):
+    """List available contribution templates."""
+    from contribai.templates.registry import (
+        TemplateRegistry,
+    )
+
+    registry = TemplateRegistry()
+    templates = registry.filter_by_type(contrib_type) if contrib_type else registry.list_all()
+
+    if not templates:
+        console.print("[yellow]No templates found[/yellow]")
+        return
+
+    table = Table(title="Contribution Templates")
+    table.add_column("Name", style="cyan")
+    table.add_column("Type", style="green")
+    table.add_column("Severity")
+    table.add_column("Description")
+    table.add_column("Languages")
+
+    for t in templates:
+        table.add_row(
+            t.name,
+            t.type,
+            t.severity,
+            t.description,
+            ", ".join(t.languages) if t.languages else "all",
+        )
+
+    console.print(table)
+
+
+@cli.command("profile")
+@click.argument("name")
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Analyze only, no PRs",
+)
+@click.option(
+    "--list",
+    "list_all",
+    is_flag=True,
+    help="List all profiles",
+)
+@click.pass_context
+def run_profile(ctx, name, dry_run, list_all):
+    """Run pipeline with a named profile."""
+    from contribai.core.profiles import (
+        get_profile,
+        list_profiles,
+    )
+
+    if list_all or name == "list":
+        profiles = list_profiles()
+        table = Table(title="Contribution Profiles")
+        table.add_column("Name", style="cyan")
+        table.add_column("Description")
+        table.add_column("Analyzers")
+        table.add_column("Threshold")
+        for p in profiles:
+            table.add_row(
+                p.name,
+                p.description,
+                ", ".join(p.analyzers),
+                p.severity_threshold,
+            )
+        console.print(table)
+        return
+
+    profile = get_profile(name)
+    if not profile:
+        console.print(f"[red]Profile '{name}' not found[/red]")
+        console.print("Available: " + ", ".join(p.name for p in list_profiles()))
+        return
+
+    console.print(f"[bold]Running with profile: {profile.name}[/bold]\n  {profile.description}")
+
+    from contribai.core.profiles import apply_profile
+
+    config = load_config(ctx.obj["config_path"])
+    config_data = config.model_dump()
+    config_data = apply_profile(config_data, profile)
+
+    from contribai.core.config import ContribAIConfig
+
+    config = ContribAIConfig(**config_data)
+
+    if profile.dry_run or dry_run:
+        dry_run = True
+
+    from contribai.orchestrator.pipeline import (
+        ContribPipeline,
+    )
+
+    pipeline = ContribPipeline(config)
+    result = asyncio.run(pipeline.run(dry_run=dry_run))
+    _print_result(result, dry_run)
 
 
 def _print_result(result, dry_run: bool):

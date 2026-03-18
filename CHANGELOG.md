@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-18
+
+### Added
+- **Web Dashboard**: FastAPI REST API + static HTML dashboard with stats, PRs, repos, run history
+- **Scheduler**: APScheduler-based cron scheduling for automated pipeline runs
+- **Parallel Processing**: `asyncio.gather` + Semaphore for concurrent repo processing (default 3)
+- **Contribution Templates**: 5 built-in YAML templates (gitignore, license, badges, type-hints, security-headers)
+- **Community Profiles**: 4 named presets (security-focused, docs-focused, full-scan, gentle)
+- **CLI Commands**: `serve`, `schedule`, `templates`, `profile <name>`
+- **Config Sections**: `SchedulerConfig`, `WebConfig`, `PipelineConfig`
+- **Memory**: `get_run_history()` endpoint for dashboard
+- **28 new tests** covering all Phase 4 modules (total: 197 tests)
+
+### Dependencies
+- `fastapi>=0.115,<1.0`
+- `uvicorn>=0.32,<1.0`
+- `apscheduler>=3.10,<4.0`
+
+
 ## [0.3.0] - 2026-03-18
 
 ### Added
