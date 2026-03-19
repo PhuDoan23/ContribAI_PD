@@ -152,6 +152,49 @@ def target(ctx, url, types, dry_run):
 
 
 @cli.command()
+@click.option("--rounds", "-r", type=int, default=5, help="Number of discovery rounds")
+@click.option("--delay", "-d", type=int, default=30, help="Delay (sec) between rounds")
+@click.option("--language", "-l", multiple=True, help="Filter by language(s)")
+@click.option("--dry-run", is_flag=True, help="Analyze without creating PRs")
+@click.pass_context
+def hunt(ctx, rounds, delay, language, dry_run):
+    """🔥 Hunt mode: auto-discover repos and contribute aggressively.
+
+    Searches GitHub for high-star, active repos that merge external PRs,
+    then runs the full pipeline on each. Loops through multiple rounds
+    with varied criteria for maximum coverage.
+    """
+    print_banner()
+
+    config = load_config(ctx.obj["config_path"])
+
+    if language:
+        config.discovery.languages = list(language)
+
+    if not config.github.token:
+        console.print("[red]❌ GitHub token not configured![/red]")
+        sys.exit(1)
+
+    if not config.llm.api_key and not config.llm.use_vertex:
+        console.print("[red]❌ LLM API key not configured![/red]")
+        sys.exit(1)
+
+    mode = "[yellow]DRY RUN[/yellow]" if dry_run else "[red]LIVE 🔥[/red]"
+    console.print(f"\n🔥 Hunt Mode ({mode})")
+    console.print(f"   Rounds: {rounds}")
+    console.print(f"   Delay: {delay}s between rounds")
+    console.print(f"   Languages: {', '.join(config.discovery.languages)}")
+    console.print(f"   LLM: {config.llm.provider} ({config.llm.model})")
+    console.print()
+
+    from contribai.orchestrator.pipeline import ContribPipeline
+
+    pipeline = ContribPipeline(config)
+    result = asyncio.run(pipeline.hunt(rounds=rounds, delay_sec=delay, dry_run=dry_run))
+    _print_result(result, dry_run)
+
+
+@cli.command()
 @click.argument("url")
 @click.pass_context
 def analyze(ctx, url):

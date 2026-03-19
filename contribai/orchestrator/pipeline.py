@@ -217,6 +217,133 @@ class ContribPipeline:
 
         return result
 
+    async def hunt(
+        self,
+        *,
+        rounds: int = 5,
+        delay_sec: int = 30,
+        dry_run: bool = False,
+    ) -> PipelineResult:
+        """Hunt mode: aggressively discover and contribute to repos.
+
+        Runs multiple discovery rounds with varied criteria.
+        For each round:
+        1. Discover repos (varied star range, shuffled languages)
+        2. Filter to repos that actually merge external PRs
+        3. Process each repo through the full pipeline
+        4. Wait between rounds to avoid rate limits
+        """
+        import random
+
+        await self._init_components()
+        total = PipelineResult()
+
+        star_tiers = [
+            (100, 1000),
+            (1000, 5000),
+            (5000, 20000),
+            (500, 3000),
+            (200, 2000),
+        ]
+        langs = list(self.config.discovery.languages)
+
+        try:
+            for rnd in range(1, rounds + 1):
+                today_prs = await self._memory.get_today_pr_count()
+                remaining = self.config.github.max_prs_per_day - today_prs
+                if remaining <= 0 and not dry_run:
+                    logger.warning(
+                        "🛑 Daily PR limit reached (%d). Stopping.",
+                        self.config.github.max_prs_per_day,
+                    )
+                    break
+
+                random.shuffle(langs)
+                stars = star_tiers[(rnd - 1) % len(star_tiers)]
+                criteria = DiscoveryCriteria(
+                    languages=langs[:2],
+                    stars_min=stars[0],
+                    stars_max=stars[1],
+                    min_last_activity_days=7,
+                    max_results=10,
+                )
+
+                logger.info(
+                    "🔥 Hunt round %d/%d — %s, ★ %d-%d",
+                    rnd,
+                    rounds,
+                    "/".join(criteria.languages),
+                    stars[0],
+                    stars[1],
+                )
+
+                repos = await self._discovery.discover(criteria)
+                if not repos:
+                    logger.info("No repos found this round")
+                    if rnd < rounds:
+                        await asyncio.sleep(delay_sec)
+                    continue
+
+                # Filter to merge-friendly repos
+                targets: list[Repository] = []
+                for repo in repos[:5]:
+                    if await self._memory.has_analyzed(repo.full_name):
+                        continue
+                    try:
+                        prs = await self._github.list_pull_requests(
+                            repo.owner,
+                            repo.name,
+                            state="closed",
+                            per_page=10,
+                        )
+                        merged = [p for p in prs if p.get("merged_at")]
+                        if merged:
+                            logger.info(
+                                "✅ %s — %d merged PRs, good target!",
+                                repo.full_name,
+                                len(merged),
+                            )
+                            targets.append(repo)
+                    except Exception:
+                        pass
+
+                if not targets:
+                    logger.info("No merge-friendly repos this round")
+                    if rnd < rounds:
+                        await asyncio.sleep(delay_sec)
+                    continue
+
+                for repo in targets[:2]:
+                    if remaining <= 0 and not dry_run:
+                        break
+                    try:
+                        rr = await self._process_repo(repo, dry_run, remaining)
+                        total.repos_analyzed += 1
+                        total.findings_total += rr.findings_total
+                        total.contributions_generated += rr.contributions_generated
+                        total.prs_created += rr.prs_created
+                        total.prs.extend(rr.prs)
+                        remaining -= rr.prs_created
+                    except Exception as e:
+                        total.errors.append(f"{repo.full_name}: {e}")
+                        logger.error(
+                            "Error processing %s: %s",
+                            repo.full_name,
+                            e,
+                        )
+
+                if rnd < rounds:
+                    logger.info(
+                        "⏳ Waiting %ds before next round...",
+                        delay_sec,
+                    )
+                    await asyncio.sleep(delay_sec)
+
+        finally:
+            await self._cleanup()
+
+        return total
+
     async def run_single(
         self,
         repo_url: str,
