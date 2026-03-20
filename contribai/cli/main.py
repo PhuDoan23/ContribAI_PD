@@ -534,9 +534,18 @@ def cleanup(ctx, yes):
 
                 for f in safe_to_delete:
                     try:
-                        owner, name = f.split("/", 1)
-                        await github._delete(f"/repos/{owner}/{name}")
-                        console.print(f"   ✅ Deleted {f}")
+                        import subprocess
+
+                        result = subprocess.run(
+                            ["gh", "repo", "delete", f, "--yes"],
+                            capture_output=True,
+                            text=True,
+                            timeout=30,
+                        )
+                        if result.returncode == 0:
+                            console.print(f"   ✅ Deleted {f}")
+                        else:
+                            console.print(f"   ❌ Failed: {result.stderr.strip()}")
                     except Exception as e:
                         console.print(f"   ❌ Failed to delete {f}: {e}")
 
