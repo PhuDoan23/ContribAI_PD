@@ -427,6 +427,130 @@ def stats(ctx):
     )
 
 
+@cli.command()
+@click.option("--yes", "-y", is_flag=True, help="Skip confirmation prompt")
+@click.pass_context
+def cleanup(ctx, yes):
+    """🧹 Clean up forks created by ContribAI.
+
+    Reads forks from ContribAI's database, checks live PR status,
+    and deletes forks where all PRs are merged or closed.
+    Forks with open PRs are kept.
+    """
+    print_banner()
+
+    config = load_config(ctx.obj["config_path"])
+
+    if not config.github.token:
+        console.print("[red]❌ GitHub token not configured![/red]")
+        sys.exit(1)
+
+    from contribai.github.client import GitHubClient
+    from contribai.orchestrator.memory import Memory
+
+    async def _cleanup():
+        memory = Memory(config.storage.resolved_db_path)
+        await memory.init()
+        github = GitHubClient(token=config.github.token)
+
+        try:
+            # Get all PRs from DB
+            all_prs = await memory.get_prs(limit=1000)
+            if not all_prs:
+                console.print("[dim]No PRs in database. Nothing to clean up.[/dim]")
+                return
+
+            # Group by fork
+            forks: dict[str, list[dict]] = {}
+            for pr in all_prs:
+                fork_name = pr.get("fork", "")
+                if not fork_name:
+                    continue
+                forks.setdefault(fork_name, []).append(pr)
+
+            if not forks:
+                console.print("[dim]No forks recorded in database.[/dim]")
+                return
+
+            console.print(f"\n🔍 Found {len(forks)} fork(s) in database\n")
+
+            safe_to_delete = []
+            has_open = []
+
+            for fork_name, prs in forks.items():
+                console.print(f"📁 [bold]{fork_name}[/bold]")
+
+                all_resolved = True
+                for pr in prs:
+                    repo = pr["repo"]
+                    pr_num = pr["pr_number"]
+
+                    # Check live status
+                    try:
+                        owner, name = repo.split("/", 1)
+                        pr_data = await github._get(f"/repos/{owner}/{name}/pulls/{pr_num}")
+                        live_status = pr_data.get("state", "unknown")
+                        if pr_data.get("merged_at"):
+                            live_status = "merged"
+
+                        # Sync to DB
+                        await memory.update_pr_status(repo, pr_num, live_status)
+
+                        if live_status == "merged":
+                            icon = "🟢"
+                        elif live_status == "open":
+                            icon = "🟡"
+                            all_resolved = False
+                        else:
+                            icon = "🔴"
+
+                        console.print(f"   PR #{pr_num}: {pr['title'][:50]} [{icon} {live_status}]")
+                    except Exception:
+                        console.print(f"   PR #{pr_num}: {pr['title'][:50]} [⚪ unknown]")
+
+                if all_resolved:
+                    console.print("   ✅ All PRs resolved — safe to delete")
+                    safe_to_delete.append(fork_name)
+                else:
+                    console.print("   ⚠️  Has open PRs — keeping")
+                    has_open.append(fork_name)
+                console.print()
+
+            # Summary
+            console.print("━" * 60)
+            if has_open:
+                console.print(f"\n⚠️  [yellow]{len(has_open)} fork(s) with open PRs (kept)[/yellow]")
+            if safe_to_delete:
+                console.print(f"\n✅ [green]{len(safe_to_delete)} fork(s) safe to delete:[/green]")
+                for f in safe_to_delete:
+                    console.print(f"   - {f}")
+
+                if not yes:
+                    if not click.confirm(
+                        f"\n🗑️  Delete {len(safe_to_delete)} fork(s)?", default=False
+                    ):
+                        console.print("[dim]Cancelled.[/dim]")
+                        return
+
+                for f in safe_to_delete:
+                    try:
+                        owner, name = f.split("/", 1)
+                        await github._delete(f"/repos/{owner}/{name}")
+                        console.print(f"   ✅ Deleted {f}")
+                    except Exception as e:
+                        console.print(f"   ❌ Failed to delete {f}: {e}")
+
+                console.print("\n🎉 Cleanup done!")
+            else:
+                console.print("\n[dim]No forks to clean up.[/dim]")
+
+        finally:
+            await github.close()
+            await memory.close()
+
+    asyncio.run(_cleanup())
+
+
 @cli.command("config")
 @click.pass_context
 def show_config(ctx):

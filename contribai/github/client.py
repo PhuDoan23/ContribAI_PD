@@ -75,6 +75,9 @@ class GitHubClient:
     async def _put(self, url: str, **kwargs) -> Any:
         return await self._request("PUT", url, **kwargs)
 
+    async def _delete(self, url: str, **kwargs) -> Any:
+        return await self._request("DELETE", url, **kwargs)
+
     # ── Rate Limit ─────────────────────────────────────────────────────────
 
     async def check_rate_limit(self) -> dict:
