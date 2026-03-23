@@ -25,9 +25,24 @@ OUR_REPLY_MARKERS = [
     "I have read the CLA Document",
     "contribai",
     "auto-fix",
-    "✅ Fixed",
-    "📝 Addressed",
+    "\u2705 Fixed",
+    "\ud83d\udcdd Addressed",
 ]
+
+# Review bot logins to ignore (they look like users but are bots)
+REVIEW_BOT_LOGINS = {
+    "coderabbitai",
+    "copilot",
+    "github-actions",
+    "dependabot",
+    "renovate",
+    "sweep-ai",
+    "sourcery-ai",
+    "codeclimate",
+    "sonarcloud",
+    "codecov",
+    "deepsource-autofix",
+}
 
 
 class PRPatrol:
@@ -186,8 +201,10 @@ class PRPatrol:
                 body = c.get("body", "")
                 is_bot = c.get("user", {}).get("type") == "Bot"
 
-                # Skip our own comments and bots
+                # Skip our own comments, bots, and review bots
                 if login == our_username or is_bot:
+                    continue
+                if login.lower() in REVIEW_BOT_LOGINS or login.endswith("[bot]"):
                     continue
                 # Skip if it looks like our auto-reply
                 if any(marker in body for marker in OUR_REPLY_MARKERS):
@@ -216,6 +233,8 @@ class PRPatrol:
                 body = c.get("body", "")
 
                 if login == our_username:
+                    continue
+                if login.lower() in REVIEW_BOT_LOGINS or login.endswith("[bot]"):
                     continue
                 if any(marker in body for marker in OUR_REPLY_MARKERS):
                     continue
@@ -271,30 +290,51 @@ class PRPatrol:
             "```"
         )
 
-        try:
-            response = await self._llm.generate(
-                prompt,
-                system="You classify review comments on pull requests. Be precise.",
-                temperature=0.1,
-            )
+        import asyncio
 
-            return self._parse_classifications(response, feedback)
-        except Exception as e:
-            logger.warning("Failed to classify feedback: %s", e)
-            # Fall back: treat all as potential code changes
-            return [
-                FeedbackItem(
-                    comment_id=f["id"],
-                    author=f["author"],
-                    body=f["body"],
-                    action=FeedbackAction.CODE_CHANGE,
-                    file_path=f.get("file_path"),
-                    line=f.get("line"),
-                    diff_hunk=f.get("diff_hunk"),
-                    is_inline=f["is_inline"],
+        from contribai.core.exceptions import LLMRateLimitError
+
+        max_retries = 3
+        for attempt in range(max_retries + 1):
+            try:
+                response = await self._llm.complete(
+                    prompt,
+                    system="You classify review comments on pull requests. Be precise.",
+                    temperature=0.1,
                 )
-                for f in feedback
-            ]
+                return self._parse_classifications(response, feedback)
+            except LLMRateLimitError as e:
+                if attempt < max_retries:
+                    wait = 5 * (2**attempt)  # 5s, 10s, 20s
+                    logger.warning(
+                        "  ⏳ Rate limited, retrying in %ds (%d/%d): %s",
+                        wait,
+                        attempt + 1,
+                        max_retries,
+                        e,
+                    )
+                    await asyncio.sleep(wait)
+                else:
+                    logger.warning("  ⚠️ Rate limit exhausted after %d retries", max_retries)
+                    break
+            except Exception as e:
+                logger.warning("Failed to classify feedback: %s", e)
+                break
+
+        # Fall back: treat all as potential code changes
+        return [
+            FeedbackItem(
+                comment_id=f["id"],
+                author=f["author"],
+                body=f["body"],
+                action=FeedbackAction.CODE_CHANGE,
+                file_path=f.get("file_path"),
+                line=f.get("line"),
+                diff_hunk=f.get("diff_hunk"),
+                is_inline=f["is_inline"],
+            )
+            for f in feedback
+        ]
 
     def _parse_classifications(self, response: str, feedback: list[dict]) -> list[FeedbackItem]:
         """Parse LLM YAML response into FeedbackItems."""
@@ -507,7 +547,7 @@ class PRPatrol:
                 f"Be polite and professional. Explain the reasoning behind our change."
             )
 
-            response = await self._llm.generate(
+            response = await self._llm.complete(
                 prompt,
                 system=(
                     "You are a developer responding to a code review question. "
