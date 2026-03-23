@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-03-24
+
+### Added
+- **Bot review context**: When maintainer replies to a bot review (Coderabbit, etc.), patrol reads the bot's original analysis and includes it as context for LLM-based code fix generation
+- **Assigned issue monitoring**: Patrol scans repos for issues assigned to our user and reports them
+- **34 new unit tests** for patrol engine covering feedback collection, bot context linking, classification parsing, and assigned issue detection
+
+### Fixed
+- `generate()` → `complete()` in `_handle_code_fix` (LLM method mismatch)
+- Bot comment filtering for 11 review bot logins + `[bot]` suffix detection
+- Exponential backoff retry (5s → 10s → 20s) for rate limit errors during LLM calls
+- Orphaned `except` block parse error in `_classify_feedback`
+
 ## [2.2.0] - 2026-03-23
 
 ### Added
