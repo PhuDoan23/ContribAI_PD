@@ -427,6 +427,27 @@ class GitHubClient:
         # GitHub's issues endpoint also returns PRs — filter them out
         return [issue for issue in results if "pull_request" not in issue]
 
+    async def get_assigned_issues(
+        self,
+        owner: str,
+        repo: str,
+        username: str,
+    ) -> list[dict]:
+        """Get open issues assigned to a specific user.
+
+        Args:
+            owner: Repo owner
+            repo: Repo name
+            username: GitHub login to check assignments for
+        """
+        return await self.list_issues(
+            owner,
+            repo,
+            assignee=username,
+            state="open",
+            per_page=20,
+        )
+
     async def get_issue_comments(self, owner: str, repo: str, issue_number: int) -> list[dict]:
         """Get comments on an issue."""
         return await self._get(f"/repos/{owner}/{repo}/issues/{issue_number}/comments")

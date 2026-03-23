@@ -251,4 +251,6 @@ class PatrolResult(BaseModel):
     replies_sent: int = 0
     cla_signed: int = 0
     prs_skipped: int = 0
+    issues_found: int = 0
+    assigned_issues: list[dict] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)

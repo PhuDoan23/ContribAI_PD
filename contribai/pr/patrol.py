@@ -183,7 +183,66 @@ class PRPatrol:
                 logger.error("  ❌ %s", error_msg)
                 result.errors.append(error_msg)
 
+        # ── Check assigned issues across repos ─────────────────────────────
+        seen_repos = {pr["repo"] for pr in pr_records if "/" in pr.get("repo", "")}
+        await self._check_assigned_issues(seen_repos, username, result, dry_run=dry_run)
+
         return result
+
+    async def _check_assigned_issues(
+        self,
+        repos: set[str],
+        username: str,
+        result: PatrolResult,
+        *,
+        dry_run: bool = False,
+    ) -> None:
+        """Check repos for issues assigned to us.
+
+        Scans each unique repo we've contributed to for open issues
+        assigned to our username. Logs them and stores in result.
+        """
+        if not repos:
+            return
+
+        logger.info("📌 Checking %d repo(s) for assigned issues...", len(repos))
+
+        for repo_full in repos:
+            try:
+                owner, repo_name = repo_full.split("/", 1)
+                issues = await self._github.get_assigned_issues(owner, repo_name, username)
+
+                for issue in issues:
+                    issue_number = issue["number"]
+                    title = issue["title"]
+                    url = issue.get("html_url", "")
+
+                    result.issues_found += 1
+                    result.assigned_issues.append(
+                        {
+                            "repo": repo_full,
+                            "number": issue_number,
+                            "title": title,
+                            "url": url,
+                        }
+                    )
+
+                    if dry_run:
+                        logger.info(
+                            "  📌 [DRY RUN] Assigned issue #%d on %s: %s",
+                            issue_number,
+                            repo_full,
+                            title[:60],
+                        )
+                    else:
+                        logger.info(
+                            "  📌 Assigned issue #%d on %s: %s",
+                            issue_number,
+                            repo_full,
+                            title[:60],
+                        )
+            except Exception as e:
+                logger.debug("Failed to check issues on %s: %s", repo_full, e)
 
     # ── Collect feedback ───────────────────────────────────────────────────
 

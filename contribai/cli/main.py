@@ -272,11 +272,20 @@ def patrol(ctx, dry_run, pr_number):
                     f"⏭️  PRs skipped: [bold]{result.prs_skipped}[/bold]\n"
                     f"🛠️  Fixes pushed: [bold]{result.fixes_pushed}[/bold]\n"
                     f"💬 Replies sent: [bold]{result.replies_sent}[/bold]\n"
-                    f"✍️  CLA signed: [bold]{result.cla_signed}[/bold]"
+                    f"✍️  CLA signed: [bold]{result.cla_signed}[/bold]\n"
+                    f"📌 Issues assigned: [bold]{result.issues_found}[/bold]"
                     + (f"\n❌ Errors: [red]{len(result.errors)}[/red]" if result.errors else ""),
                     title="🔍 Patrol Complete" + (" (DRY RUN)" if dry_run else ""),
                 )
             )
+
+            if result.assigned_issues:
+                console.print("\n[bold]📌 Assigned Issues:[/bold]")
+                for iss in result.assigned_issues:
+                    console.print(
+                        f"  • [cyan]{iss['repo']}[/cyan] #{iss['number']}: {iss['title'][:60]}"
+                    )
+                    console.print(f"    [dim]{iss['url']}[/dim]")
 
             if result.errors:
                 for e in result.errors:
