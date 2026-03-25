@@ -154,9 +154,9 @@ class CodeAnalyzer:
         by_type: dict[str, list[str]] = {}
         for f in findings:
             key = (
-                f.contribution_type.value
-                if hasattr(f.contribution_type, "value")
-                else str(f.contribution_type)
+                f.type.value
+                if hasattr(f.type, "value")
+                else str(f.type)
             )
             by_type.setdefault(key, []).append(f.title)
 
