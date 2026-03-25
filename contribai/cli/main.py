@@ -40,10 +40,29 @@ console = Console()
 
 def setup_logging(verbose: bool = False):
     level = logging.DEBUG if verbose else logging.INFO
+    handlers: list[logging.Handler] = [
+        RichHandler(console=console, show_path=False, rich_tracebacks=True)
+    ]
+
+    # Add file logging for persistence
+    try:
+        from pathlib import Path
+
+        log_dir = Path.home() / ".contribai"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(log_dir / "contribai.log", encoding="utf-8")
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
+        )
+        handlers.append(file_handler)
+    except Exception:
+        pass  # Don't fail if file logging can't be set up
+
     logging.basicConfig(
         level=level,
         format="%(message)s",
-        handlers=[RichHandler(console=console, show_path=False, rich_tracebacks=True)],
+        handlers=handlers,
     )
 
 
@@ -1049,6 +1068,106 @@ def notify_test(ctx):
 
     asyncio.run(_send())
     console.print("[green]Test notification sent![/green]")
+
+
+@cli.command()
+@click.pass_context
+def status(ctx):
+    """Show ContribAI system status — memory, PRs, rate limits."""
+    print_banner()
+
+    config = load_config(ctx.obj["config_path"])
+
+    async def _run():
+        from contribai.orchestrator.memory import Memory
+
+        memory = Memory(config.storage.resolved_db_path)
+        await memory.init()
+
+        console.print("[bold]📊 ContribAI Status[/bold]\n")
+
+        # Memory stats
+        stats_table = Table(title="Memory Database", show_header=True)
+        stats_table.add_column("Metric", style="cyan")
+        stats_table.add_column("Value", style="green")
+
+        # Count repos
+        cursor = await memory._db.execute("SELECT COUNT(*) FROM analyzed_repos")
+        repo_count = (await cursor.fetchone())[0]
+        stats_table.add_row("Repos analyzed", str(repo_count))
+
+        # Count PRs
+        cursor = await memory._db.execute("SELECT COUNT(*) FROM submitted_prs")
+        pr_count = (await cursor.fetchone())[0]
+        stats_table.add_row("PRs submitted", str(pr_count))
+
+        # PR by status
+        cursor = await memory._db.execute(
+            "SELECT status, COUNT(*) FROM submitted_prs GROUP BY status"
+        )
+        for status_val, count in await cursor.fetchall():
+            stats_table.add_row(f"  └─ {status_val}", str(count))
+
+        # Outcome stats
+        try:
+            outcome_stats = await memory.get_outcome_stats()
+            if outcome_stats:
+                for outcome, count in outcome_stats.items():
+                    if outcome == "avg_merge_rate":
+                        stats_table.add_row("Avg merge rate", f"{count:.0%}")
+                    else:
+                        stats_table.add_row(f"Outcome: {outcome}", str(count))
+        except Exception:
+            pass
+
+        # Findings cache
+        cursor = await memory._db.execute("SELECT COUNT(*) FROM findings_cache")
+        findings_count = (await cursor.fetchone())[0]
+        stats_table.add_row("Cached findings", str(findings_count))
+
+        console.print(stats_table)
+
+        # Recent PRs
+        cursor = await memory._db.execute(
+            "SELECT repo, pr_number, title, status, type "
+            "FROM submitted_prs ORDER BY id DESC LIMIT 10"
+        )
+        recent = await cursor.fetchall()
+        if recent:
+            console.print()
+            pr_table = Table(title="Recent PRs (last 10)")
+            pr_table.add_column("Repo", style="cyan")
+            pr_table.add_column("#", style="yellow")
+            pr_table.add_column("Title", max_width=40)
+            pr_table.add_column("Status")
+            pr_table.add_column("Type", style="dim")
+            for row in recent:
+                status_style = (
+                    "green" if row[3] == "merged" else "red" if row[3] == "closed" else "yellow"
+                )
+                pr_table.add_row(
+                    row[0],
+                    str(row[1]),
+                    row[2],
+                    f"[{status_style}]{row[3]}[/{status_style}]",
+                    row[4],
+                )
+            console.print(pr_table)
+
+        # GitHub rate limit
+        try:
+            from contribai.github.client import GitHubClient
+
+            gh = GitHubClient(token=config.github.token)
+            remaining = await gh.check_rate_limit()
+            console.print(f"\n🔑 GitHub API rate limit remaining: [bold]{remaining}[/bold]")
+            await gh.close()
+        except Exception:
+            console.print("\n[dim]Could not check GitHub rate limit[/dim]")
+
+        await memory.close()
+
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":

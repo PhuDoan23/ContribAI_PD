@@ -79,6 +79,41 @@ for round in 1..N:
     5. Sleep between rounds (configurable delay)
 ```
 
+```mermaid
+sequenceDiagram
+    participant CLI as CLI (hunt)
+    participant P as Pipeline
+    participant G as GitHub API
+    participant M as Memory
+    participant A as Analyzer
+    participant Gen as Generator
+    participant PR as PRManager
+
+    CLI->>P: hunt(rounds, languages)
+    loop Each Round
+        P->>G: search_repos(language, stars)
+        G-->>P: candidate repos
+        P->>M: filter_already_analyzed()
+        M-->>P: new repos only
+
+        loop Each Repo
+            P->>G: get_repo_tree()
+            P->>A: analyze(repo, files)
+            A-->>P: findings[]
+            P->>Gen: generate(finding, context)
+            Gen-->>P: contribution
+            alt Not Dry Run
+                P->>PR: create_pr(contribution)
+                PR->>G: fork → branch → commit → PR
+                G-->>PR: pr_url
+                P->>M: record_outcome()
+            end
+        end
+        P->>P: sleep(delay)
+    end
+    P-->>CLI: PipelineResult
+```
+
 ### PR Patrol
 
 ```

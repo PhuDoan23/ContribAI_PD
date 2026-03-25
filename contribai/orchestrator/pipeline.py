@@ -11,7 +11,9 @@ import logging
 from dataclasses import dataclass, field
 
 from contribai.analysis.analyzer import CodeAnalyzer
+from contribai.agents.registry import create_default_registry
 from contribai.core.config import ContribAIConfig
+from contribai.core.middleware import MiddlewareChain, PipelineContext, build_default_chain
 from contribai.core.models import (
     AnalysisResult,
     DiscoveryCriteria,
@@ -26,6 +28,7 @@ from contribai.issues.solver import IssueSolver
 from contribai.llm.provider import create_llm_provider
 from contribai.orchestrator.memory import Memory
 from contribai.pr.manager import PRManager
+from contribai.tools.protocol import create_default_tools
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +104,9 @@ class ContribPipeline:
         self._generator: ContributionGenerator | None = None
         self._pr_manager: PRManager | None = None
         self._discovery: RepoDiscovery | None = None
+        self._middleware_chain: list = []
+        self._agent_registry = None
+        self._tool_registry = None
 
     async def _init_components(self):
         """Initialize all pipeline components."""
@@ -129,10 +135,11 @@ class ContribPipeline:
             config=self.config.analysis,
         )
 
-        # Generator
+        # Generator — now with memory for repo_preferences
         self._generator = ContributionGenerator(
             llm=self._llm,
             config=self.config.contribution,
+            memory=self._memory,
         )
 
         # PR Manager
@@ -142,6 +149,35 @@ class ContribPipeline:
         self._discovery = RepoDiscovery(
             client=self._github,
             config=self.config.discovery,
+        )
+
+        # Middleware chain (DeerFlow pattern)
+        self._middleware_chain = build_default_chain(
+            max_prs_per_day=self.config.github.max_prs_per_day,
+            max_retries=self.config.pipeline.max_retries
+            if hasattr(self.config.pipeline, "max_retries")
+            else 2,
+            min_quality_score=self.config.pipeline.min_quality_score
+            if hasattr(self.config.pipeline, "min_quality_score")
+            else 5.0,
+        )
+        logger.info("Middleware chain: %d middlewares loaded", len(self._middleware_chain))
+
+        # Agent registry (DeerFlow pattern)
+        self._agent_registry = create_default_registry()
+        logger.info(
+            "Agent registry: %d agents loaded",
+            len(self._agent_registry.list_agents()),
+        )
+
+        # Tool registry (DeerFlow pattern)
+        self._tool_registry = create_default_tools(
+            github_client=self._github,
+            llm_provider=self._llm,
+        )
+        logger.info(
+            "Tool registry: %d tools loaded",
+            len(self._tool_registry.list_tools()),
         )
 
     async def _cleanup(self):

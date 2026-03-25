@@ -215,6 +215,37 @@ class ComplianceAgent:
         return {"actions": actions, "count": len(actions)}
 
 
+class IssueSolverAgent:
+    """Wraps IssueSolver as a sub-agent for issue-driven contributions."""
+
+    @property
+    def role(self) -> AgentRole:
+        return AgentRole.ISSUE_SOLVER
+
+    @property
+    def description(self) -> str:
+        return "Solve open GitHub issues by generating targeted code contributions"
+
+    async def execute(self, ctx: AgentContext) -> dict[str, Any]:
+        solver = ctx.data.get("solver")
+        if not solver:
+            return {"error": "Missing solver in context"}
+        repo = ctx.data.get("repo")
+        issues = ctx.data.get("issues", [])
+        max_issues = ctx.data.get("max_issues", 5)
+
+        if not issues:
+            return {"solved": 0, "contributions": []}
+
+        contributions = []
+        for issue in issues[:max_issues]:
+            result = await solver.solve_issue(repo, issue)
+            if result:
+                contributions.append(result)
+
+        return {"contributions": contributions, "solved": len(contributions)}
+
+
 def create_default_registry() -> AgentRegistry:
     """Create a registry with all built-in agents."""
     registry = AgentRegistry(max_concurrent=3)
@@ -222,4 +253,5 @@ def create_default_registry() -> AgentRegistry:
     registry.register(GeneratorAgent())
     registry.register(PatrolAgent())
     registry.register(ComplianceAgent())
+    registry.register(IssueSolverAgent())
     return registry
