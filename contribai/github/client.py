@@ -171,9 +171,12 @@ class GitHubClient:
             for item in data.get("tree", [])
         ]
 
-    async def get_file_content(self, owner: str, repo: str, path: str) -> str:
+    async def get_file_content(
+        self, owner: str, repo: str, path: str, ref: str | None = None
+    ) -> str:
         """Get the content of a file from the repository."""
-        data = await self._get(f"/repos/{owner}/{repo}/contents/{path}")
+        params = {"ref": ref} if ref else None
+        data = await self._get(f"/repos/{owner}/{repo}/contents/{path}", params=params)
         if data.get("encoding") == "base64":
             return base64.b64decode(data["content"]).decode("utf-8")
         return data.get("content", "")

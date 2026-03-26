@@ -79,3 +79,30 @@ class TestContributingGuide:
         client.get_file_content = AsyncMock(return_value="# Contributing\nPlease read...")
         result = await client.get_contributing_guide("owner", "repo")
         assert "Contributing" in result
+
+
+class TestGetFileContentRef:
+    @pytest.mark.asyncio
+    async def test_get_file_content_with_ref(self, client):
+        """ref param is passed as query param to GitHub API."""
+        import respx, httpx, base64
+        content_b64 = base64.b64encode(b"hello").decode()
+        with respx.mock:
+            respx.get(
+                "https://api.github.com/repos/owner/repo/contents/file.py",
+                params={"ref": "my-branch"},
+            ).mock(return_value=httpx.Response(200, json={"encoding": "base64", "content": content_b64}))
+            result = await client.get_file_content("owner", "repo", "file.py", ref="my-branch")
+        assert result == "hello"
+
+    @pytest.mark.asyncio
+    async def test_get_file_content_without_ref(self, client):
+        """ref param defaults to None — no query param sent."""
+        import respx, httpx, base64
+        content_b64 = base64.b64encode(b"world").decode()
+        with respx.mock:
+            respx.get(
+                "https://api.github.com/repos/owner/repo/contents/file.py",
+            ).mock(return_value=httpx.Response(200, json={"encoding": "base64", "content": content_b64}))
+            result = await client.get_file_content("owner", "repo", "file.py")
+        assert result == "world"
