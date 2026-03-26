@@ -135,9 +135,7 @@ class TestGetFileContentWithSha:
                     },
                 )
             )
-            content, sha = await client.get_file_content_with_sha(
-                "owner", "repo", "file.py"
-            )
+            content, sha = await client.get_file_content_with_sha("owner", "repo", "file.py")
         assert content == "hello world"
         assert sha == "abc123def456"
 
@@ -173,16 +171,16 @@ class TestDeleteRepository:
     @pytest.mark.asyncio
     async def test_delete_success(self, client):
         with respx.mock:
-            respx.delete(
-                "https://api.github.com/repos/me/forked-repo"
-            ).mock(return_value=httpx.Response(204))
+            respx.delete("https://api.github.com/repos/me/forked-repo").mock(
+                return_value=httpx.Response(204)
+            )
             await client.delete_repository("me", "forked-repo")  # Should not raise
 
     @pytest.mark.asyncio
     async def test_delete_raises_on_error(self, client):
         with respx.mock:
-            respx.delete(
-                "https://api.github.com/repos/me/missing"
-            ).mock(return_value=httpx.Response(404, json={"message": "Not Found"}))
+            respx.delete("https://api.github.com/repos/me/missing").mock(
+                return_value=httpx.Response(404, json={"message": "Not Found"})
+            )
             with pytest.raises(GitHubAPIError):
                 await client.delete_repository("me", "missing")

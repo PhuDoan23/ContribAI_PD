@@ -1,4 +1,5 @@
 """Tests for ContribAI MCP server tool implementations."""
+
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -14,6 +15,7 @@ class TestSearchRepos:
     @pytest.mark.asyncio
     async def test_returns_repo_list(self):
         from contribai.mcp_server import _search_repos
+
         mock_repo = MagicMock()
         mock_repo.full_name = "owner/repo"
         mock_repo.stars = 1000
@@ -35,6 +37,7 @@ class TestSearchRepos:
     @pytest.mark.asyncio
     async def test_builds_query_string(self):
         from contribai.mcp_server import _search_repos
+
         with patch("contribai.mcp_server.get_github") as mock_get_gh:
             gh = AsyncMock()
             gh.search_repositories = AsyncMock(return_value=[])
@@ -49,11 +52,10 @@ class TestGetFileContent:
     @pytest.mark.asyncio
     async def test_returns_content_and_sha(self):
         from contribai.mcp_server import _get_file_content
+
         with patch("contribai.mcp_server.get_github") as mock_get_gh:
             gh = AsyncMock()
-            gh.get_file_content_with_sha = AsyncMock(
-                return_value=("print('hello')", "abc123sha")
-            )
+            gh.get_file_content_with_sha = AsyncMock(return_value=("print('hello')", "abc123sha"))
             mock_get_gh.return_value = gh
             result = await _get_file_content({"owner": "o", "repo": "r", "path": "main.py"})
         data = _text(result)
@@ -63,6 +65,7 @@ class TestGetFileContent:
     @pytest.mark.asyncio
     async def test_passes_ref_param(self):
         from contribai.mcp_server import _get_file_content
+
         with patch("contribai.mcp_server.get_github") as mock_get_gh:
             gh = AsyncMock()
             gh.get_file_content_with_sha = AsyncMock(return_value=("x = 1", "def456sha"))
@@ -70,15 +73,14 @@ class TestGetFileContent:
             await _get_file_content(
                 {"owner": "o", "repo": "r", "path": "f.py", "ref": "fix-branch"}
             )
-            gh.get_file_content_with_sha.assert_called_once_with(
-                "o", "r", "f.py", ref="fix-branch"
-            )
+            gh.get_file_content_with_sha.assert_called_once_with("o", "r", "f.py", ref="fix-branch")
 
 
 class TestGetFileTree:
     @pytest.mark.asyncio
     async def test_returns_file_list(self):
         from contribai.mcp_server import _get_file_tree
+
         mock_node = MagicMock()
         mock_node.path = "src/main.py"
         mock_node.type = "blob"
@@ -94,6 +96,7 @@ class TestGetFileTree:
     @pytest.mark.asyncio
     async def test_respects_max_files(self):
         from contribai.mcp_server import _get_file_tree
+
         nodes = [MagicMock(path=f"f{i}.py", type="blob") for i in range(500)]
         with patch("contribai.mcp_server.get_github") as mock_get_gh:
             gh = AsyncMock()
@@ -107,6 +110,7 @@ class TestGetFileTree:
     @pytest.mark.asyncio
     async def test_excludes_tree_nodes(self):
         from contribai.mcp_server import _get_file_tree
+
         nodes = [
             MagicMock(path="src/", type="tree"),
             MagicMock(path="src/main.py", type="blob"),
@@ -129,6 +133,7 @@ class TestGetRepoInfo:
     @pytest.mark.asyncio
     async def test_returns_repo_metadata(self):
         from contribai.mcp_server import _get_repo_info
+
         mock_repo = MagicMock()
         mock_repo.full_name = "owner/repo"
         mock_repo.stars = 500
@@ -151,6 +156,7 @@ class TestGetOpenIssues:
     @pytest.mark.asyncio
     async def test_returns_issue_list(self):
         from contribai.mcp_server import _get_open_issues
+
         mock_issue = MagicMock()
         mock_issue.number = 1
         mock_issue.title = "Bug report"
@@ -171,6 +177,7 @@ class TestForkRepo:
     @pytest.mark.asyncio
     async def test_returns_fork_name(self):
         from contribai.mcp_server import _fork_repo
+
         fork = MagicMock(full_name="me/upstream-repo")
         with patch("contribai.mcp_server.get_github") as mock_get_gh:
             gh = AsyncMock()
@@ -185,6 +192,7 @@ class TestCreateBranch:
     @pytest.mark.asyncio
     async def test_returns_branch_ref(self):
         from contribai.mcp_server import _create_branch
+
         with patch("contribai.mcp_server.get_github") as mock_get_gh:
             gh = AsyncMock()
             gh.create_branch = AsyncMock(return_value={"ref": "refs/heads/fix-typo"})
@@ -200,17 +208,26 @@ class TestPushFileChange:
     @pytest.mark.asyncio
     async def test_returns_commit_sha(self):
         from contribai.mcp_server import _push_file_change
+
         with patch("contribai.mcp_server.get_github") as mock_get_gh:
             gh = AsyncMock()
-            gh.create_or_update_file = AsyncMock(return_value={
-                "commit": {"sha": "abc123"},
-                "content": {"html_url": "https://github.com/me/r/blob/fix-typo/README.md"},
-            })
+            gh.create_or_update_file = AsyncMock(
+                return_value={
+                    "commit": {"sha": "abc123"},
+                    "content": {"html_url": "https://github.com/me/r/blob/fix-typo/README.md"},
+                }
+            )
             mock_get_gh.return_value = gh
-            result = await _push_file_change({
-                "fork_owner": "me", "repo": "r", "branch": "fix-typo",
-                "path": "README.md", "content": "# Fixed", "commit_msg": "fix: typo"
-            })
+            result = await _push_file_change(
+                {
+                    "fork_owner": "me",
+                    "repo": "r",
+                    "branch": "fix-typo",
+                    "path": "README.md",
+                    "content": "# Fixed",
+                    "commit_msg": "fix: typo",
+                }
+            )
         data = _text(result)
         assert data["commit_sha"] == "abc123"
         assert "README.md" in data["content_url"]
@@ -220,18 +237,25 @@ class TestCreatePR:
     @pytest.mark.asyncio
     async def test_returns_pr_info(self):
         from contribai.mcp_server import _create_pr
+
         with patch("contribai.mcp_server.get_github") as mock_get_gh:
             gh = AsyncMock()
-            gh.create_pull_request = AsyncMock(return_value={"number": 42, "html_url": "https://github.com/owner/repo/pull/42"})
+            gh.create_pull_request = AsyncMock(
+                return_value={"number": 42, "html_url": "https://github.com/owner/repo/pull/42"}
+            )
             mock_get_gh.return_value = gh
             with patch("contribai.mcp_server.get_memory") as mock_get_mem:
                 mem = AsyncMock()
                 mock_get_mem.return_value = mem
-                result = await _create_pr({
-                    "owner": "owner", "repo": "repo",
-                    "title": "fix: typo", "body": "Fixed a typo",
-                    "head_branch": "me:fix-typo",
-                })
+                result = await _create_pr(
+                    {
+                        "owner": "owner",
+                        "repo": "repo",
+                        "title": "fix: typo",
+                        "body": "Fixed a typo",
+                        "head_branch": "me:fix-typo",
+                    }
+                )
         data = _text(result)
         assert data["pr_number"] == 42
         assert "pull/42" in data["pr_url"]
@@ -248,6 +272,7 @@ class TestClosePR:
     @pytest.mark.asyncio
     async def test_returns_success_true(self):
         from contribai.mcp_server import _close_pr
+
         with patch("contribai.mcp_server.get_github") as mock_get_gh:
             gh = AsyncMock()
             gh.close_pull_request = AsyncMock(return_value=None)
@@ -259,6 +284,7 @@ class TestClosePR:
     @pytest.mark.asyncio
     async def test_returns_success_false_on_error(self):
         from contribai.mcp_server import _close_pr
+
         with patch("contribai.mcp_server.get_github") as mock_get_gh:
             gh = AsyncMock()
             gh.close_pull_request = AsyncMock(side_effect=Exception("API error"))
@@ -272,6 +298,7 @@ class TestCheckDuplicatePR:
     @pytest.mark.asyncio
     async def test_no_duplicate(self):
         from contribai.mcp_server import _check_duplicate_pr
+
         with patch("contribai.mcp_server.get_memory") as mock_get_mem:
             mem = AsyncMock()
             mem.get_repo_prs = AsyncMock(return_value=[])
@@ -283,11 +310,12 @@ class TestCheckDuplicatePR:
     @pytest.mark.asyncio
     async def test_finds_existing_open_pr(self):
         from contribai.mcp_server import _check_duplicate_pr
+
         with patch("contribai.mcp_server.get_memory") as mock_get_mem:
             mem = AsyncMock()
-            mem.get_repo_prs = AsyncMock(return_value=[
-                {"status": "open", "pr_url": "https://github.com/o/r/pull/5"}
-            ])
+            mem.get_repo_prs = AsyncMock(
+                return_value=[{"status": "open", "pr_url": "https://github.com/o/r/pull/5"}]
+            )
             mock_get_mem.return_value = mem
             result = await _check_duplicate_pr({"owner": "o", "repo": "r"})
         data = _text(result)
@@ -300,6 +328,7 @@ class TestCheckAIPolicy:
     async def test_not_banned_when_no_policy_file(self):
         from contribai.core.exceptions import GitHubAPIError
         from contribai.mcp_server import _check_ai_policy
+
         with patch("contribai.mcp_server.get_github") as mock_get_gh:
             gh = AsyncMock()
             gh.get_file_content = AsyncMock(side_effect=GitHubAPIError("not found", 404))
@@ -311,6 +340,7 @@ class TestCheckAIPolicy:
     @pytest.mark.asyncio
     async def test_banned_when_policy_prohibits_ai(self):
         from contribai.mcp_server import _check_ai_policy
+
         policy_content = "We do not accept AI-generated contributions."
         with patch("contribai.mcp_server.get_github") as mock_get_gh:
             gh = AsyncMock()
@@ -325,13 +355,16 @@ class TestGetStats:
     @pytest.mark.asyncio
     async def test_returns_stats(self):
         from contribai.mcp_server import _get_stats
+
         with patch("contribai.mcp_server.get_memory") as mock_get_mem:
             mem = AsyncMock()
-            mem.get_stats = AsyncMock(return_value={
-                "total_repos_analyzed": 10,
-                "total_prs_submitted": 5,
-                "prs_merged": 3,
-            })
+            mem.get_stats = AsyncMock(
+                return_value={
+                    "total_repos_analyzed": 10,
+                    "total_prs_submitted": 5,
+                    "prs_merged": 3,
+                }
+            )
             mem.get_outcome_stats = AsyncMock(return_value={"avg_merge_rate": 0.6})
             mock_get_mem.return_value = mem
             result = await _get_stats({})
@@ -344,16 +377,23 @@ class TestPatrolPRs:
     @pytest.mark.asyncio
     async def test_returns_review_list(self):
         from contribai.mcp_server import _patrol_prs
-        open_pr = {"repo": "owner/repo", "pr_number": 7, "pr_url": "https://github.com/owner/repo/pull/7"}
+
+        open_pr = {
+            "repo": "owner/repo",
+            "pr_number": 7,
+            "pr_url": "https://github.com/owner/repo/pull/7",
+        }
         with patch("contribai.mcp_server.get_memory") as mock_get_mem:
             mem = AsyncMock()
             mem.get_prs = AsyncMock(return_value=[open_pr])
             mock_get_mem.return_value = mem
             with patch("contribai.mcp_server.get_github") as mock_get_gh:
                 gh = AsyncMock()
-                gh.get_pr_comments = AsyncMock(return_value=[
-                    {"user": {"login": "maintainer"}, "body": "Please add tests", "id": 1}
-                ])
+                gh.get_pr_comments = AsyncMock(
+                    return_value=[
+                        {"user": {"login": "maintainer"}, "body": "Please add tests", "id": 1}
+                    ]
+                )
                 gh.get_pr_review_comments = AsyncMock(return_value=[])
                 mock_get_gh.return_value = gh
                 result = await _patrol_prs({"dry_run": True})
@@ -365,6 +405,7 @@ class TestPatrolPRs:
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_open_prs(self):
         from contribai.mcp_server import _patrol_prs
+
         with patch("contribai.mcp_server.get_memory") as mock_get_mem:
             mem = AsyncMock()
             mem.get_prs = AsyncMock(return_value=[])
@@ -379,6 +420,7 @@ class TestCleanupForks:
     @pytest.mark.asyncio
     async def test_dry_run_lists_but_does_not_delete(self):
         from contribai.mcp_server import _cleanup_forks
+
         fork_data = {"full_name": "me/old-fork"}
         # PRs stored with fork="me/old-fork" (the fork column in submitted_prs)
         all_prs = [

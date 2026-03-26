@@ -5,6 +5,7 @@ Claude Desktop acts as the AI brain; this server handles all GitHub I/O.
 
 Run via: python -m contribai.mcp_server
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -55,6 +56,7 @@ def _err(msg: str) -> list[types.TextContent]:
 
 
 # ── Tool listing ───────────────────────────────────────────────────────────────
+
 
 @server.list_tools()
 async def list_tools() -> list[types.Tool]:
@@ -262,6 +264,7 @@ async def list_tools() -> list[types.Tool]:
 
 # ── Tool dispatch ──────────────────────────────────────────────────────────────
 
+
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
     try:
@@ -304,6 +307,7 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 
 # ── Tool implementations (stubs — filled in subsequent tasks) ──────────────────
 
+
 async def _search_repos(args: dict) -> list[types.TextContent]:
     gh = await get_github()
     language = args["language"]
@@ -312,15 +316,17 @@ async def _search_repos(args: dict) -> list[types.TextContent]:
     limit = args.get("limit", 10)
     query = f"language:{language} stars:{stars_min}..{stars_max}"
     repos = await gh.search_repositories(query, per_page=limit)
-    return _ok(repos=[
-        {
-            "full_name": r.full_name,
-            "stars": r.stars,
-            "language": r.language,
-            "description": r.description,
-        }
-        for r in repos
-    ])
+    return _ok(
+        repos=[
+            {
+                "full_name": r.full_name,
+                "stars": r.stars,
+                "language": r.language,
+                "description": r.description,
+            }
+            for r in repos
+        ]
+    )
 
 
 async def _get_repo_info(args: dict) -> list[types.TextContent]:
@@ -356,10 +362,13 @@ async def _get_file_content(args: dict) -> list[types.TextContent]:
 async def _get_open_issues(args: dict) -> list[types.TextContent]:
     gh = await get_github()
     issues = await gh.get_open_issues(args["owner"], args["repo"], per_page=args.get("limit", 20))
-    return _ok(issues=[
-        {"number": i.number, "title": i.title, "body": i.body, "labels": i.labels}
-        for i in issues
-    ])
+    return _ok(
+        issues=[
+            {"number": i.number, "title": i.title, "body": i.body, "labels": i.labels}
+            for i in issues
+        ]
+    )
+
 
 async def _fork_repo(args: dict) -> list[types.TextContent]:
     gh = await get_github()
@@ -370,7 +379,9 @@ async def _fork_repo(args: dict) -> list[types.TextContent]:
 async def _create_branch(args: dict) -> list[types.TextContent]:
     gh = await get_github()
     ref = await gh.create_branch(
-        args["fork_owner"], args["repo"], args["branch_name"],
+        args["fork_owner"],
+        args["repo"],
+        args["branch_name"],
         from_branch=args.get("from_branch"),
     )
     return _ok(ref=ref.get("ref", ""))
@@ -425,10 +436,18 @@ async def _close_pr(args: dict) -> list[types.TextContent]:
     except Exception as e:
         return _ok(success=False, reason=str(e))
 
+
 # AI policy keywords (inlined from pipeline._check_ai_policy)
 _AI_BAN_KEYWORDS = [
-    "no ai", "no-ai", "not accept ai", "prohibit ai", "ban ai",
-    "ai generated", "ai-generated", "no llm", "human only",
+    "no ai",
+    "no-ai",
+    "not accept ai",
+    "prohibit ai",
+    "ban ai",
+    "ai generated",
+    "ai-generated",
+    "no llm",
+    "human only",
 ]
 _AI_POLICY_PATHS = ["AI_POLICY.md", ".github/AI_POLICY.md", "ai_policy.md", ".github/ai_policy.md"]
 
@@ -471,6 +490,7 @@ async def _get_stats(args: dict) -> list[types.TextContent]:
         merge_rate=f"{rate:.0%}",
     )
 
+
 async def _patrol_prs(args: dict) -> list[types.TextContent]:
     mem = await get_memory()
     gh = await get_github()
@@ -488,27 +508,31 @@ async def _patrol_prs(args: dict) -> list[types.TextContent]:
             # Issue comments (general PR comments)
             comments = await gh.get_pr_comments(owner, repo_name, pr_number)
             for c in comments:
-                reviews_list.append({
-                    "pr_number": pr_number,
-                    "repo": repo,
-                    "pr_url": pr_url,
-                    "comment_author": c.get("user", {}).get("login", ""),
-                    "comment_body": c.get("body", ""),
-                    "is_inline": False,
-                    "file_path": None,
-                })
+                reviews_list.append(
+                    {
+                        "pr_number": pr_number,
+                        "repo": repo,
+                        "pr_url": pr_url,
+                        "comment_author": c.get("user", {}).get("login", ""),
+                        "comment_body": c.get("body", ""),
+                        "is_inline": False,
+                        "file_path": None,
+                    }
+                )
             # Inline review comments
             inline = await gh.get_pr_review_comments(owner, repo_name, pr_number)
             for c in inline:
-                reviews_list.append({
-                    "pr_number": pr_number,
-                    "repo": repo,
-                    "pr_url": pr_url,
-                    "comment_author": c.get("user", {}).get("login", ""),
-                    "comment_body": c.get("body", ""),
-                    "is_inline": True,
-                    "file_path": c.get("path"),
-                })
+                reviews_list.append(
+                    {
+                        "pr_number": pr_number,
+                        "repo": repo,
+                        "pr_url": pr_url,
+                        "comment_author": c.get("user", {}).get("login", ""),
+                        "comment_body": c.get("body", ""),
+                        "is_inline": True,
+                        "file_path": c.get("path"),
+                    }
+                )
         except Exception as e:
             logger.warning("Failed to fetch comments for %s#%d: %s", repo, pr_number, e)
 
@@ -554,6 +578,7 @@ async def _cleanup_forks(args: dict) -> list[types.TextContent]:
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────
+
 
 async def main():
     async with stdio_server() as (read_stream, write_stream):
