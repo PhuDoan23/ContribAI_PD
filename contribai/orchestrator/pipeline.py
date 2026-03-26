@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 from contribai.agents.registry import create_default_registry
 from contribai.analysis.analyzer import CodeAnalyzer
+from contribai.analysis.context_compressor import ContextCompressor
 from contribai.core.config import ContribAIConfig
 from contribai.core.middleware import build_default_chain
 from contribai.core.models import (
@@ -522,6 +523,15 @@ class ContribPipeline:
         logger.info("=" * 60)
         logger.info("📦 Processing: %s", repo.full_name)
 
+        # ── Auto-load working memory (AgentScope static_control pattern) ──
+        cached_context = await self._memory.get_context(repo.full_name, "analysis_summary")
+        if cached_context:
+            logger.info(
+                "💾 Loaded cached context for %s (%d chars)",
+                repo.full_name,
+                len(cached_context),
+            )
+
         # Check AI policy — skip repos that ban AI-generated PRs
         if await self._check_ai_policy(repo):
             logger.warning(
@@ -556,6 +566,24 @@ class ContribPipeline:
         if not analysis.findings:
             logger.info("No findings for %s", repo.full_name)
             return result
+
+        # ── Auto-save working memory (AgentScope static_control pattern) ──
+        try:
+            summary = ContextCompressor.summarize_findings_compact(analysis.findings)
+            await self._memory.store_context(
+                repo.full_name,
+                "analysis_summary",
+                summary,
+                language=repo.language or "",
+                ttl_hours=72.0,
+            )
+            logger.info(
+                "💾 Saved analysis context for %s (%d findings)",
+                repo.full_name,
+                len(analysis.findings),
+            )
+        except Exception as e:
+            logger.debug("Failed to save context: %s", e)
 
         # --- Early finding filter (pre-generation) ---
         # Filter out findings that target non-code files (blocked by SKIP_EXTENSIONS)

@@ -181,3 +181,88 @@ class ContextCompressor:
                 result.append(line)
 
         return "\n".join(result)
+
+    # ── LLM-driven compression (AgentScope pattern) ───────────────────────
+
+    SUMMARY_TEMPLATE = (
+        "# Task Overview\n{task_overview}\n\n"
+        "# Current State\n{current_state}\n\n"
+        "# Important Discoveries\n{important_discoveries}\n\n"
+        "# Context to Preserve\n{context_to_preserve}"
+    )
+
+    COMPRESSION_PROMPT = (
+        "You are a context compressor. Given the following analysis context, "
+        "produce a structured summary that preserves critical information "
+        "while being as concise as possible.\n\n"
+        "Respond in this exact format:\n"
+        "TASK_OVERVIEW: <1-2 sentence overview of what was being analyzed>\n"
+        "CURRENT_STATE: <key findings, patterns, issues discovered>\n"
+        "IMPORTANT_DISCOVERIES: <most significant items, bullet each>\n"
+        "CONTEXT_TO_PRESERVE: <anything needed for follow-up work>\n\n"
+        "--- CONTEXT TO COMPRESS ---\n{context}"
+    )
+
+    @staticmethod
+    async def summarize_with_llm(
+        context: str,
+        llm,
+        *,
+        max_summary_tokens: int = 2_000,
+    ) -> str:
+        """Use LLM to create a structured summary of analysis context.
+
+        Inspired by AgentScope's CompressionConfig — uses a structured
+        template (Task Overview, Current State, Discoveries, Context to
+        Preserve) to produce a compact yet informative summary.
+
+        Args:
+            context: The full context text to compress.
+            llm: An LLM provider with an async complete() method.
+            max_summary_tokens: Max tokens for the summary output.
+
+        Returns:
+            Structured summary string, or truncated text if LLM fails.
+        """
+        if not llm:
+            return ContextCompressor(max_context_tokens=max_summary_tokens).compress_text(context)
+
+        try:
+            prompt = ContextCompressor.COMPRESSION_PROMPT.format(
+                context=context[: max_summary_tokens * CHARS_PER_TOKEN * 4]
+            )
+            response = await llm.complete(
+                prompt,
+                system_prompt="You are a concise technical summarizer.",
+            )
+
+            # Parse structured response into template
+            sections = {
+                "task_overview": "",
+                "current_state": "",
+                "important_discoveries": "",
+                "context_to_preserve": "",
+            }
+            for line in response.strip().splitlines():
+                line_lower = line.strip()
+                if line_lower.startswith("TASK_OVERVIEW:"):
+                    sections["task_overview"] = line_lower[14:].strip()
+                elif line_lower.startswith("CURRENT_STATE:"):
+                    sections["current_state"] = line_lower[14:].strip()
+                elif line_lower.startswith("IMPORTANT_DISCOVERIES:"):
+                    sections["important_discoveries"] = line_lower[22:].strip()
+                elif line_lower.startswith("CONTEXT_TO_PRESERVE:"):
+                    sections["context_to_preserve"] = line_lower[20:].strip()
+
+            summary = ContextCompressor.SUMMARY_TEMPLATE.format(**sections)
+            logger.info(
+                "LLM compression: %d → %d chars (%.0f%% reduction)",
+                len(context),
+                len(summary),
+                (1 - len(summary) / max(len(context), 1)) * 100,
+            )
+            return summary
+
+        except Exception as e:
+            logger.warning("LLM compression failed, falling back to truncation: %s", e)
+            return ContextCompressor(max_context_tokens=max_summary_tokens).compress_text(context)
