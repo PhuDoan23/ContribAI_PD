@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from contribai.agents.registry import create_default_registry
 from contribai.analysis.analyzer import CodeAnalyzer
 from contribai.analysis.context_compressor import ContextCompressor
+from contribai.analysis.repo_intel import RepoIntelligence, RepoProfile
 from contribai.core.config import ContribAIConfig
 from contribai.core.events import Event, EventBus, EventType, FileEventLogger
 from contribai.core.middleware import build_default_chain
@@ -138,6 +139,7 @@ class ContribPipeline:
         self._tool_registry = None
         self._reviewer: HumanReviewer | None = None
         self._event_bus: EventBus = EventBus()
+        self._repo_intel: RepoIntelligence | None = None
 
     async def _init_components(self):
         """Initialize all pipeline components."""
@@ -206,6 +208,10 @@ class ContribPipeline:
             "Tool registry: %d tools loaded",
             len(self._tool_registry.list_tools()),
         )
+
+        # Repo Intelligence (v4.0)
+        self._repo_intel = RepoIntelligence(github=self._github)
+        logger.info("🧠 Repo Intelligence: enabled")
 
         # Human review gate
         if self.config.pipeline.human_review:
@@ -381,6 +387,8 @@ class ContribPipeline:
             (500, 3000),
         ]
         langs = list(self.config.discovery.languages)
+        # v4.0: Multi-language expansion — add extra languages for broader reach
+        all_languages = list(set(langs + ["javascript", "typescript", "go", "rust"]))
 
         try:
             for rnd in range(1, rounds + 1):
@@ -393,10 +401,12 @@ class ContribPipeline:
                     )
                     break
 
-                random.shuffle(langs)
+                # v4.0: Multi-language — rotate through all languages
+                hunt_langs = all_languages if rnd % 2 == 0 else langs
+                random.shuffle(hunt_langs)
                 stars = star_tiers[(rnd - 1) % len(star_tiers)]
                 criteria = DiscoveryCriteria(
-                    languages=langs[:2],
+                    languages=hunt_langs[:2],
                     stars_min=stars[0],
                     stars_max=stars[1],
                     min_last_activity_days=7,
@@ -407,7 +417,7 @@ class ContribPipeline:
                     "🔥 Hunt round %d/%d — %s, ★ %d-%d",
                     rnd,
                     rounds,
-                    "/".join(criteria.languages),
+                    "/".join(hunt_langs[:2]),
                     stars[0],
                     stars[1],
                 )
@@ -487,6 +497,23 @@ class ContribPipeline:
                         logger.debug("⏳ Inter-repo delay: %.1fs", delay_between)
                         await asyncio.sleep(delay_between)
 
+                # ── v4.0: Issue-First Strategy ──────────────────────────────
+                # On odd rounds, also search for high-value issues globally
+                if mode in ("issues", "both") and rnd % 2 == 1:
+                    try:
+                        issue_results = await self._hunt_issues_globally(
+                            languages=hunt_langs[:2],
+                            dry_run=dry_run,
+                            max_issues=3,
+                        )
+                        total.findings_total += issue_results.findings_total
+                        total.contributions_generated += issue_results.contributions_generated
+                        total.prs_created += issue_results.prs_created
+                        total.prs.extend(issue_results.prs)
+                        remaining -= issue_results.prs_created
+                    except Exception as e:
+                        logger.debug("Issue-first hunt failed: %s", e)
+
                 if rnd < rounds:
                     logger.info(
                         "⏳ Waiting %ds before next round...",
@@ -534,6 +561,95 @@ class ContribPipeline:
                 rr.errors.append(f"{repo.full_name}: {e}")
                 logger.error("Error processing %s: %s", repo.full_name, e)
             return rr
+
+    async def _hunt_issues_globally(
+        self,
+        languages: list[str],
+        dry_run: bool = False,
+        max_issues: int = 5,
+    ) -> PipelineResult:
+        """v4.0: Issue-First Strategy — search GitHub for high-value issues.
+
+        Searches for repos with 'good first issue' or 'help wanted' labels,
+        then solves those issues for higher merge rate.
+
+        Args:
+            languages: Programming languages to filter by.
+            dry_run: If True, don't create PRs.
+            max_issues: Maximum issues to process.
+
+        Returns:
+            PipelineResult with issue-solving results.
+        """
+        result = PipelineResult()
+        logger.info("🎯 Issue-First: searching for high-value issues...")
+
+        for lang in languages[:2]:
+            for label in ["good first issue", "help wanted", "bug"]:
+                try:
+                    query = (
+                        f'label:"{label}" language:{lang} state:open '
+                        f"stars:>100 archived:false"
+                    )
+                    issues = await self._github.search_issues(
+                        query, sort="created", per_page=10
+                    )
+
+                    for issue_data in issues[:max_issues]:
+                        repo_url = issue_data.get("repository_url", "")
+                        if not repo_url:
+                            continue
+
+                        # Extract owner/repo from URL
+                        parts = repo_url.rstrip("/").split("/")
+                        if len(parts) < 2:
+                            continue
+                        owner, repo_name = parts[-2], parts[-1]
+                        full_name = f"{owner}/{repo_name}"
+
+                        # Skip if already analyzed
+                        if await self._memory.has_analyzed(full_name):
+                            continue
+
+                        # Skip if we already have an active PR
+                        past_prs = await self._memory.get_repo_prs(full_name)
+                        active = [p for p in past_prs if p.get("status") == "open"]
+                        if active:
+                            continue
+
+                        logger.info(
+                            "🎯 Found issue #%d in %s: %s [%s]",
+                            issue_data.get("number", 0),
+                            full_name,
+                            issue_data.get("title", "?"),
+                            label,
+                        )
+
+                        # Process the repo in issue mode
+                        try:
+                            repo = await self._github.get_repo_details(owner, repo_name)
+                            sem = asyncio.Semaphore(1)
+                            rr = await self._hunt_process_repo(
+                                repo, "issues", dry_run, max_issues, sem
+                            )
+                            result.repos_analyzed += rr.repos_analyzed
+                            result.findings_total += rr.findings_total
+                            result.contributions_generated += rr.contributions_generated
+                            result.prs_created += rr.prs_created
+                            result.prs.extend(rr.prs)
+
+                            if result.prs_created >= max_issues:
+                                return result
+                        except Exception as e:
+                            logger.debug(
+                                "Failed to process %s for issue: %s",
+                                full_name,
+                                e,
+                            )
+                except Exception as e:
+                    logger.debug("Issue search failed for %s/%s: %s", lang, label, e)
+
+        return result
 
     async def run_single(
         self,
@@ -632,6 +748,47 @@ class ContribPipeline:
                 "📋 Repo guidelines: commit=%s, %d template sections",
                 guidelines.commit_format,
                 len(guidelines.required_sections),
+            )
+
+        # ── v4.0: Repo Intelligence ──────────────────────────────────────
+        repo_profile: RepoProfile | None = None
+        try:
+            repo_profile = await self._repo_intel.profile(repo.owner, repo.name)
+        except Exception as e:
+            logger.debug("Repo intelligence failed for %s: %s", repo.full_name, e)
+
+        # ── v4.0: Smart Dedup — inject PR history into analysis context ──
+        pr_history_context = ""
+        past_prs = await self._memory.get_repo_prs(repo.full_name)
+        if past_prs:
+            pr_lines = []
+            for pr in past_prs[:10]:
+                pr_lines.append(
+                    f"  - [{pr.get('status', '?')}] {pr.get('title', '?')}"
+                )
+            pr_history_context = (
+                "\n\nPREVIOUSLY SUBMITTED PRs (DO NOT repeat these):\n"
+                + "\n".join(pr_lines)
+            )
+            logger.info(
+                "🔁 Injected %d past PRs into analysis context",
+                len(past_prs),
+            )
+
+        # Inject repo intel + PR history into analyzer's context
+        if repo_profile or pr_history_context:
+            extra_context = ""
+            if repo_profile:
+                extra_context += "\n\n" + repo_profile.to_prompt_context()
+            if pr_history_context:
+                extra_context += pr_history_context
+            # Store as working memory for the analyzer to pick up
+            await self._memory.store_context(
+                repo.full_name,
+                "repo_intelligence",
+                extra_context,
+                language=repo.language or "",
+                ttl_hours=48.0,
             )
 
         # Analyze — set task context for model routing

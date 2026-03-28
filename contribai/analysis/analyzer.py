@@ -482,6 +482,11 @@ class CodeAnalyzer:
                 f"Skip issues that don't apply to the detected stack/type.\n"
             )
 
+        # v4.0: Inject repo intelligence + PR history if available
+        repo_intel_ctx = getattr(context, "_repo_intel_context", "")
+        if repo_intel_ctx:
+            profile_ctx += f"\n{repo_intel_ctx}\n"
+
         system = (
             "You are a senior software engineer performing a focused code review. "
             "You have deep expertise in real-world codebases and know which issues "

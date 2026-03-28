@@ -646,6 +646,93 @@ class GitHubClient:
         """Delete a repository (must be owner or have admin access)."""
         await self._delete(f"/repos/{owner}/{repo}")
 
+    async def get_issues(
+        self,
+        owner: str,
+        repo: str,
+        *,
+        state: str = "open",
+        labels: str = "",
+        per_page: int = 30,
+    ) -> list[dict]:
+        """Get issues for a repository.
+
+        Args:
+            owner: Repository owner.
+            repo: Repository name.
+            state: Issue state ('open', 'closed', 'all').
+            labels: Comma-separated list of label names.
+            per_page: Results per page (max 100).
+
+        Returns:
+            List of issue dicts from GitHub API.
+        """
+        params: dict[str, str] = {
+            "state": state,
+            "per_page": str(per_page),
+            "sort": "created",
+            "direction": "desc",
+        }
+        if labels:
+            params["labels"] = labels
+        return await self._get(f"/repos/{owner}/{repo}/issues", params=params)
+
+    async def search_issues(
+        self,
+        query: str,
+        *,
+        sort: str = "created",
+        order: str = "desc",
+        per_page: int = 30,
+    ) -> list[dict]:
+        """Search GitHub issues across repositories.
+
+        Args:
+            query: GitHub search query (e.g. 'label:"good first issue" language:python').
+            sort: Sort field ('created', 'updated', 'comments').
+            order: Sort order ('asc', 'desc').
+            per_page: Results per page.
+
+        Returns:
+            List of issue dicts from search results.
+        """
+        params = {
+            "q": query,
+            "sort": sort,
+            "order": order,
+            "per_page": str(per_page),
+        }
+        data = await self._get("/search/issues", params=params)
+        return data.get("items", []) if isinstance(data, dict) else []
+
+    async def close_issue(
+        self,
+        owner: str,
+        repo: str,
+        issue_number: int,
+        *,
+        comment: str = "",
+    ) -> None:
+        """Close an issue with an optional comment.
+
+        Args:
+            owner: Repository owner.
+            repo: Repository name.
+            issue_number: Issue number to close.
+            comment: Optional comment to post before closing.
+        """
+        if comment:
+            await self._post(
+                f"/repos/{owner}/{repo}/issues/{issue_number}/comments",
+                json={"body": comment},
+            )
+        await self._request(
+            "PATCH",
+            f"/repos/{owner}/{repo}/issues/{issue_number}",
+            json={"state": "closed", "state_reason": "not_planned"},
+        )
+        logger.info("Closed issue #%d on %s/%s", issue_number, owner, repo)
+
     @staticmethod
     def _parse_repo(data: dict) -> Repository:
         """Parse raw API response into Repository model."""
