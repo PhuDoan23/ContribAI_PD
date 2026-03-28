@@ -13,7 +13,7 @@ python -m venv .venv
 pip install -e ".[dev]"
 
 # Verify
-pytest tests/ -v  # 416 tests must pass
+pytest tests/ -v  # 431 tests must pass
 contribai --help
 ```
 
@@ -41,7 +41,7 @@ contribai --help
 
 5. **Run tests**:
    ```bash
-   pytest tests/ -v  # 416 tests
+   pytest tests/ -v  # 431 tests
    ```
 
 6. **Commit** with conventional messages + DCO signoff:
@@ -52,7 +52,7 @@ contribai --help
 
 7. **Push & create PR** using the PR template
 
-## 🏗️ Project Structure (v3.0.6)
+## 🏗️ Project Structure (v4.0.0)
 
 | Directory | Purpose |
 |-----------|---------|
@@ -68,7 +68,7 @@ contribai --help
 | `contribai/issues/` | Issue-driven contribution solver |
 | `contribai/web/` | FastAPI dashboard, auth, webhooks |
 | `contribai/cli/` | Rich CLI interface |
-| `tests/` | 416 unit tests |
+| `tests/` | 431 unit tests |
 | `docs/` | Architecture documentation |
 | `.agents/workflows/` | Development workflows |
 

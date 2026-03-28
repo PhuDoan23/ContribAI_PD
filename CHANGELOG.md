@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-03-28
+
+### Added
+- **Repo Intelligence Layer** (`contribai/analysis/repo_intel.py`): Profiles target repos before contributing — analyzes merged PR patterns, identifies high-value issues, tracks review speed, and injects intelligence into LLM prompts for focused contributions
+- **Smart Dedup (PR History Injection)**: Past PR titles injected directly into analysis prompts with "DO NOT REPEAT" instruction — prevents rediscovering already-fixed bugs
+- **Issue-First Hunt Strategy** (`_hunt_issues_globally`): Searches GitHub globally for repos with `good first issue`, `help wanted`, and `bug` labels — expected 60-80% merge rate vs 26% from random scanning
+- **Multi-language Expansion**: Config expanded from Python-only to Python, JavaScript, TypeScript, Go, and Rust — 5x broader repo coverage; hunt mode alternates between configured and expanded language sets
+- **Test Generation Enhancement**: Repo intelligence context injected into all analyzer prompts including test generation — guides ContribAI to generate tests aligned with repo preferences
+- `GitHubClient.get_issues()` — fetch repo issues with label filtering
+- `GitHubClient.search_issues()` — global issue search across all of GitHub
+- 15 new tests for repo intelligence (431 total, 52% coverage)
+
 ## [3.0.6] - 2026-03-28
 
 ### Added

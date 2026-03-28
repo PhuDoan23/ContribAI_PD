@@ -1,6 +1,6 @@
 # Deployment Guide
 
-**Version:** 3.0.6 | **Last Updated:** 2026-03-28
+**Version:** 4.0.0 | **Last Updated:** 2026-03-28
 
 ---
 
@@ -74,14 +74,14 @@ pip install -e ".[dev]"
 pip install -e "."
 
 # Specific version
-pip install contribai==3.0.6
+pip install contribai==4.0.0
 ```
 
 **Verification:**
 
 ```bash
 contribai --version
-# ContribAI 3.0.6
+# ContribAI 4.0.0
 
 contribai --help
 # Shows all commands
@@ -93,10 +93,10 @@ contribai --help
 
 ```bash
 # Build image locally
-docker build -t contribai:3.0.6 .
+docker build -t contribai:4.0.0 .
 
 # Or pull from registry
-docker pull tang-vu/contribai:3.0.6
+docker pull tang-vu/contribai:4.0.0
 ```
 
 **Key Docker images:**
@@ -106,7 +106,7 @@ docker pull tang-vu/contribai:3.0.6
 FROM python:3.11-slim
 
 # Install: contribai + dependencies
-RUN pip install contribai==3.0.6
+RUN pip install contribai==4.0.0
 
 # Expose: 8787 (web dashboard)
 EXPOSE 8787
@@ -333,7 +333,7 @@ version: '3.8'
 
 services:
   dashboard:
-    image: tang-vu/contribai:3.0.6
+    image: tang-vu/contribai:4.0.0
     command: serve
     ports:
       - "8787:8787"
@@ -346,7 +346,7 @@ services:
     restart: unless-stopped
 
   runner:
-    image: tang-vu/contribai:3.0.6
+    image: tang-vu/contribai:4.0.0
     command: run
     environment:
       CONTRIBAI_GITHUB_TOKEN: ${GITHUB_TOKEN}
@@ -359,7 +359,7 @@ services:
     restart: unless-stopped
 
   scheduler:
-    image: tang-vu/contribai:3.0.6
+    image: tang-vu/contribai:4.0.0
     command: schedule --cron "0 */6 * * *"  # Every 6 hours
     environment:
       CONTRIBAI_GITHUB_TOKEN: ${GITHUB_TOKEN}
@@ -634,7 +634,7 @@ spec:
         spec:
           containers:
           - name: contribai
-            image: tang-vu/contribai:3.0.6
+            image: tang-vu/contribai:4.0.0
             command: ["contribai", "run"]
             env:
             - name: CONTRIBAI_GITHUB_TOKEN

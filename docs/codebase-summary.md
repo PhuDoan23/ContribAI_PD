@@ -1,6 +1,6 @@
 # ContribAI Codebase Summary
 
-**Version:** 3.0.6 | **Total LOC:** ~5,500+ | **Modules:** 14 | **Test Files:** 32
+**Version:** 4.0.0 | **Total LOC:** ~5,500+ | **Modules:** 14 | **Test Files:** 32
 
 ---
 

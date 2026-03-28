@@ -1,6 +1,6 @@
 # System Architecture
 
-**Version:** 3.0.6 | **Last Updated:** 2026-03-28
+**Version:** 4.0.0 | **Last Updated:** 2026-03-28
 
 ---
 
@@ -8,7 +8,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    ContribAI Pipeline (v3.0.6)                  │
+│                    ContribAI Pipeline (v4.0.0)                  │
 └─────────────────────────────────────────────────────────────────┘
 
 Input: GitHub Repository (URL or discovery)

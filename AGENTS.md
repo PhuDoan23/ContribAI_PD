@@ -26,7 +26,7 @@ It is itself an AI agent that operates on other GitHub repositories.
 | Tests | pytest (400+ tests) |
 | Lint | ruff |
 
-## Architecture (v3.0.6)
+## Architecture (v4.0.0)
 
 ### Core Pipeline
 ```

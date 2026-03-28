@@ -4,9 +4,9 @@
 
 | Version | Supported |
 |---------|-----------|
-| 3.0.x   | ✅ Active |
-| 2.4.x   | ⚠️ Security fixes only |
-| < 2.4   | ❌        |
+| 4.0.x   | ✅ Active |
+| 3.0.x   | ⚠️ Security fixes only |
+| < 3.0   | ❌        |
 
 ## Reporting a Vulnerability
 
@@ -43,7 +43,7 @@ ContribAI handles sensitive data:
 - DCO signoff on all commits via GitHub API
 - Middleware chain validates and gates every pipeline action
 
-### Architecture Security (v3.0.6)
+### Architecture Security (v4.0.0)
 - **Middleware chain** — RateLimit and Validation middlewares run before any processing
 - **Quality gate** — QualityGateMiddleware blocks low-scoring contributions
 - **Retry with backoff** — RetryMiddleware prevents retry-based abuse

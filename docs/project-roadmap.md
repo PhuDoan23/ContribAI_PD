@@ -1,6 +1,6 @@
 # Project Roadmap
 
-**Current Version:** 3.0.6 | **Release Date:** 2026-03-28 | **Status:** Active Development
+**Current Version:** 4.0.0 | **Release Date:** 2026-03-28 | **Status:** Active Development
 
 ---
 
@@ -79,6 +79,7 @@ ContribAI is a mature autonomous AI contribution system with a robust foundation
 | **v3.0.4** | 2026-03-28 | Security hardening (constant-time API keys, webhook validation) | ✓ Complete |
 | **v3.0.5** | 2026-03-28 | Critical bug fixes (webhook bypass, retry re-entry, context compressor) | ✓ Complete |
 | **v3.0.6** | 2026-03-28 | SKIP_DIRECTORIES filter, auto-close linked issues, HALL_OF_FAME | ✓ Complete |
+| **v4.0.0** | 2026-03-28 | Repo Intelligence, Smart Dedup, Issue-First Strategy, Multi-language (JS/TS/Go/Rust) | ✓ Complete |
 
 **Key Achievements (v3.0.x):**
 - ✓ Enhanced event bus with JSONL logging
@@ -94,7 +95,7 @@ ContribAI is a mature autonomous AI contribution system with a robust foundation
 
 ## Feature Status Matrix
 
-### Core Pipeline (v3.0.6)
+### Core Pipeline (v4.0.0)
 
 | Feature | Status | Details |
 |---------|--------|---------|
@@ -106,7 +107,7 @@ ContribAI is a mature autonomous AI contribution system with a robust foundation
 | Cross-file fixes | ✓ Complete | Bulk fix capability for pattern repetition |
 | Issue-driven solving | ✓ Complete | Fetch + solve open GitHub issues |
 
-### Safety & Compliance (v3.0.6)
+### Safety & Compliance (v4.0.0)
 
 | Feature | Status | Details |
 |---------|--------|---------|
@@ -119,7 +120,7 @@ ContribAI is a mature autonomous AI contribution system with a robust foundation
 | Deep validation | ✓ Complete | LLM validates findings vs. full file context |
 | Dry-run mode | ✓ Complete | Preview without PR creation |
 
-### Platform Features (v3.0.6)
+### Platform Features (v4.0.0)
 
 | Feature | Status | Details |
 |---------|--------|---------|
@@ -132,7 +133,7 @@ ContribAI is a mature autonomous AI contribution system with a robust foundation
 | Notifications | ✓ Complete | Slack, Discord, Telegram integrations |
 | API quotas | ✓ Complete | Daily usage tracking + limits |
 
-### Architecture & Internals (v3.0.6)
+### Architecture & Internals (v4.0.0)
 
 | Feature | Status | Details |
 |---------|--------|---------|
@@ -310,7 +311,7 @@ ContribAI is a mature autonomous AI contribution system with a robust foundation
 
 ## Success Metrics & KPIs
 
-### Current State (v3.0.6)
+### Current State (v4.0.0)
 
 | Metric | Current | Target (v3.1) | Target (v4.0) |
 |--------|---------|---|---|
@@ -335,7 +336,7 @@ ContribAI is a mature autonomous AI contribution system with a robust foundation
 
 ## Known Limitations & Future Improvements
 
-### Current Limitations (v3.0.6)
+### Current Limitations (v4.0.0)
 
 1. **Single-instance only** — No distributed deployment yet
    - **Fix planned:** v3.1.0 (PostgreSQL + Redis)

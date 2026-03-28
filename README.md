@@ -5,7 +5,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-416%20passed-brightgreen)](#testing)
-[![Version](https://img.shields.io/badge/version-3.0.6-blue)](https://github.com/tang-vu/ContribAI/releases)
+[![Version](https://img.shields.io/badge/version-4.0.0-blue)](https://github.com/tang-vu/ContribAI/releases)
 
 ### 🏆 Results
 
