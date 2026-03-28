@@ -1,3 +1,4 @@
-//! GitHub REST API client.
+//! GitHub REST API client and repo discovery.
 
-// TODO: Phase 2
+pub mod client;
+pub mod discovery;
