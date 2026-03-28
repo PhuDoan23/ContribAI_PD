@@ -9,7 +9,7 @@ use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, AUTHORIZATION, USER_AGENT}
 use reqwest::{Client, Response, StatusCode};
 use serde_json::Value;
 use std::collections::HashMap;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 use crate::core::error::{ContribError, Result};
 use crate::core::models::{FileNode, Issue, Repository};
@@ -19,6 +19,7 @@ const GITHUB_API: &str = "https://api.github.com";
 /// Async GitHub REST API client.
 pub struct GitHubClient {
     client: Client,
+    #[allow(dead_code)]
     token: String,
     rate_limit_buffer: u32,
 }

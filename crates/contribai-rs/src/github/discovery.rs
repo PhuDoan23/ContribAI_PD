@@ -51,7 +51,10 @@ impl<'a> RepoDiscovery<'a> {
             stars_min: self.config.stars_min,
             stars_max: self.config.stars_max,
             max_results: self.config.max_results,
-            ..Default::default()
+            min_last_activity_days: 30,
+            require_contributing_guide: false,
+            topics: Vec::new(),
+            exclude_repos: Vec::new(),
         }
     }
 
@@ -220,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_prioritize_prefers_sweet_spot_stars() {
-        let config = DiscoveryConfig::default();
+        let _config = DiscoveryConfig::default();
         // We can't create a real GitHubClient, so we test prioritize directly
         let repos = vec![
             make_repo("small", 10, 5, true),

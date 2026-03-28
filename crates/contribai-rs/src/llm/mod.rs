@@ -1,3 +1,3 @@
-//! LLM provider abstraction (Gemini, OpenAI, Anthropic, Ollama).
+//! LLM provider abstraction with multi-provider support.
 
-// TODO: Phase 3
+pub mod provider;
