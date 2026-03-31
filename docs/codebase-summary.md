@@ -1,6 +1,6 @@
 # ContribAI Codebase Summary
 
-**Version:** 5.0.0 | **Language:** Rust | **Total LOC:** ~21,400 | **Files:** 62 .rs | **Tests:** 323
+**Version:** 5.1.0 | **Language:** Rust | **Total LOC:** ~22,000 | **Files:** 63 .rs | **Tests:** 335
 
 ---
 
@@ -20,7 +20,7 @@ crates/contribai-rs/src/
 ├── tools/             # Tool protocol (1 file)
 ├── mcp/               # MCP server (21 tools) + client (3 files)
 ├── web/               # Axum dashboard, API key auth, webhooks (1 file)
-├── cli/               # Clap CLI with 13 commands (1 file)
+├── cli/               # Clap CLI with 22 commands + ratatui TUI (3 files)
 ├── scheduler/         # Tokio cron scheduler (1 file)
 ├── plugins/           # Trait-based plugin system (1 file)
 ├── templates/         # Contribution templates (1 file)
@@ -48,7 +48,7 @@ crates/contribai-rs/src/
 | **tools** | Tool protocol (MCP-inspired) | `Tool`, `ToolResult` | 1 |
 | **mcp** | MCP stdio server (21 tools) + client | `McpServer`, `StdioMcpClient` | 3 |
 | **web** | Axum REST API, API key auth, webhook receiver, dashboard | `run_server`, `AppState`, `verify_webhook_signature` | 1 |
-| **cli** | Clap-based CLI with 13 commands | `Cli`, `Commands` | 1 |
+| **cli** | Clap-based CLI with 22 commands + ratatui TUI | `Cli`, `Commands`, `run_interactive_tui` | 3 |
 | **scheduler** | Tokio-based cron automation | `ContribScheduler` | 1 |
 | **plugins** | Trait-based plugin system | `AnalyzerPlugin`, `GeneratorPlugin` | 1 |
 | **templates** | Contribution templates | `TemplateRegistry` | 1 |
@@ -108,20 +108,29 @@ crates/contribai-rs/src/
 ### CLI Entry Point
 - **File:** `crates/contribai-rs/src/cli/mod.rs`
 - **Struct:** `Cli` (clap derive)
-- **13 Commands:**
-  - `hunt` — Autonomous multi-round hunting
+- **22 Commands:**
   - `run` — Single full pipeline run
-  - `target` — Analyze specific repo
-  - `solve` — Solve issues in a repo
-  - `serve` — Start web dashboard
-  - `schedule` — Start cron scheduler
+  - `hunt` — Autonomous multi-round hunting
   - `patrol` — Monitor open PRs
-  - `mcp-server` — Start MCP stdio server
-  - `analyze` — Dry-run analysis on target
-  - `status` — Show PR status table
-  - `config` — Display effective configuration
-  - `cleanup` — Remove stale forks
+  - `target` — Analyze specific repo
+  - `analyze` — Dry-run analysis
+  - `solve` — Solve issues in a repo
   - `stats` — Summary statistics
+  - `status` — Show PR status table
+  - `leaderboard` — Merge rates by repo
+  - `models` — Available LLM models
+  - `templates` — Contribution templates
+  - `profile` — Named config profiles
+  - `cleanup` — Remove stale forks
+  - `notify-test` — Real HTTP to Slack/Discord/Telegram
+  - `system-status` — DB, rate limits, scheduler
+  - `interactive` — **ratatui TUI browser** (NEW in v5.1.0)
+  - `web-server` — Start web dashboard
+  - `schedule` — Start cron scheduler
+  - `mcp-server` — MCP stdio server
+  - `init` — Interactive setup wizard
+  - `login` — Auth status
+  - `config-get/set/list` — YAML config editor
 
 ### Web Entry Point
 - **File:** `crates/contribai-rs/src/web/mod.rs`
@@ -195,7 +204,7 @@ SchedulerStarted | WebhookReceived
 | **Logging** | tracing, tracing-subscriber |
 | **Code Parsing** | tree-sitter (8 language grammars) |
 | **Crypto** | hmac, sha2, hex (webhook verification) |
-| **Testing** | cargo test (built-in), 323 tests |
+| **Testing** | cargo test (built-in), 335 tests |
 | **Linting** | clippy |
 | **Formatting** | rustfmt |
 
@@ -292,7 +301,7 @@ mod tests {
 }
 ```
 
-**Test Coverage:** 323 tests across 62 source files
+**Test Coverage:** 335 tests across 63 source files
 **Test Command:** `cargo test` (all tests), `cargo test <module>` (specific)
 
 ---
@@ -309,5 +318,5 @@ mod tests {
 ## Document Metadata
 
 - **Created:** 2026-03-28
-- **Last Updated:** 2026-03-31
-- **Version:** 5.0.0 (Rust rewrite)
+- **Last Updated:** 2026-04-01
+- **Version:** 5.1.0 (Interactive TUI, real notify-test, full CLI parity)
