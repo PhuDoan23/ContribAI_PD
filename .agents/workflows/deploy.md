@@ -1,5 +1,5 @@
 ---
-description: Build and deploy workflow – build Docker images, run in containers, deploy
+description: Build and deploy workflow – build binary, run in containers, deploy
 ---
 
 # Deploy Workflow
@@ -7,14 +7,14 @@ description: Build and deploy workflow – build Docker images, run in container
 ## Steps
 
 ### Local Development
-1. **Install locally**
+1. **Build the binary**
 ```bash
-pip install -e ".[dev]"
+cargo build --manifest-path crates/contribai-rs/Cargo.toml --release
 ```
 
 2. **Run CLI directly**
 ```bash
-contribai run --dry-run
+./crates/contribai-rs/target/release/contribai run --dry-run
 ```
 
 ### Docker
@@ -23,6 +23,8 @@ contribai run --dry-run
 ```bash
 docker build -t contribai:latest .
 ```
+The Dockerfile uses a multi-stage build: `rust:slim` builder → `debian:bookworm-slim` runtime.
+The final image contains only the static binary — no Rust toolchain.
 
 4. **Run in container**
 ```bash
@@ -37,24 +39,23 @@ docker run --rm \
 docker-compose up
 ```
 
-### Package Build
+### Binary Build
 
-6. **Build Python package**
+6. **Build release binary**
 // turbo
 ```bash
-python -m build
+cargo build --manifest-path crates/contribai-rs/Cargo.toml --release
 ```
 
-7. **Verify package contents**
+7. **Verify binary**
 // turbo
 ```bash
-python -m twine check dist/*
+./crates/contribai-rs/target/release/contribai --version
 ```
 
-8. **Test install from built package**
+8. **Strip binary for smaller size (Linux)**
 ```bash
-pip install dist/contribai-*.whl
-contribai --help
+strip crates/contribai-rs/target/release/contribai
 ```
 
 ### Production Deployment
@@ -69,17 +70,13 @@ export CONTRIBAI_LLM_PROVIDER=gemini
 10. **Run as a scheduled job (cron)**
 ```bash
 # Run every 6 hours
-0 */6 * * * cd /path/to/contribai && contribai run >> /var/log/contribai.log 2>&1
+0 */6 * * * cd /path/to/contribai && ./contribai run >> /var/log/contribai.log 2>&1
 ```
 
 11. **Monitor logs**
 // turbo
 ```bash
-python -c "
-import pathlib
-db = pathlib.Path.home() / '.contribai' / 'memory.db'
-print(f'Memory DB exists: {db.exists()}')
-if db.exists():
-    print(f'Size: {db.stat().st_size / 1024:.1f} KB')
-"
+# Check memory DB
+DB=~/.contribai/memory.db
+ls -lh "$DB" && echo "DB size: $(du -sh $DB | cut -f1)"
 ```

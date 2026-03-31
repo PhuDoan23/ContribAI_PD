@@ -1,59 +1,59 @@
 # ContribAI Codebase Summary
 
-**Version:** 4.0.0 | **Total LOC:** ~5,500+ | **Modules:** 14 | **Test Files:** 32
+**Version:** 5.0.0 | **Language:** Rust | **Total LOC:** ~21,400 | **Files:** 62 .rs | **Tests:** 323
 
 ---
 
 ## Quick Navigation
 
 ```
-contribai/
-├── core/              # Foundational abstractions (1,100 LOC)
-├── llm/               # Multi-provider LLM routing (900 LOC)
-├── github/            # GitHub API + discovery (550 LOC)
-├── analysis/          # 7 analyzers + 17 skills (700 LOC)
-├── generator/         # Code fix generation (300 LOC)
-├── orchestrator/      # Pipeline + hunt + memory (500 LOC)
-├── pr/                # PR lifecycle management (542 LOC)
-├── issues/            # Issue-driven contributions (339 LOC)
-├── agents/            # Sub-agent registry (158 LOC)
-├── tools/             # Tool protocol (59 LOC)
-├── mcp_server.py      # MCP stdio server (180 LOC)
-├── web/               # FastAPI dashboard (324 LOC)
-├── cli/               # Click CLI + TUI (150+ LOC)
-├── scheduler/         # APScheduler wrapper (100 LOC)
-├── plugins/           # Plugin system (161 LOC)
-├── templates/         # Contribution templates (96 LOC)
-├── notifications/     # Slack/Discord/Telegram (248 LOC)
-├── sandbox/           # Docker code validation (244 LOC)
-└── mcp/               # MCP client (180 LOC)
+crates/contribai-rs/src/
+├── core/              # Config, models, middleware, events, errors, quotas (9 files)
+├── llm/               # Multi-provider LLM routing, context, formatter (7 files)
+├── github/            # GitHub REST+GraphQL client, discovery, guidelines (4 files)
+├── analysis/          # Analyzers, skills, triage, AST intel, repo map (8 files)
+├── generator/         # Code fix generation, scorer, self-review, validation (6 files)
+├── orchestrator/      # Pipeline, memory (SQLite), review gate (4 files)
+├── pr/                # PR lifecycle, patrol monitoring (3 files)
+├── issues/            # Issue-driven contributions (2 files)
+├── agents/            # Sub-agent registry (2 files)
+├── tools/             # Tool protocol (1 file)
+├── mcp/               # MCP server (21 tools) + client (3 files)
+├── web/               # Axum dashboard, API key auth, webhooks (1 file)
+├── cli/               # Clap CLI with 13 commands (1 file)
+├── scheduler/         # Tokio cron scheduler (1 file)
+├── plugins/           # Trait-based plugin system (1 file)
+├── templates/         # Contribution templates (1 file)
+├── notifications/     # Slack/Discord/Telegram (1 file)
+├── sandbox/           # Code validation (1 file)
+├── lib.rs             # Crate root (public modules)
+└── main.rs            # Binary entry point
 ```
 
 ---
 
 ## Module Responsibilities
 
-| Module | Purpose | Key Classes/Functions | LOC |
-|--------|---------|----------------------|-----|
-| **core** | Config, models, middleware, events, exceptions, utilities | `Config`, `Middleware`, `EventBus`, `Repository`, `Finding`, `Contribution` | 1,100 |
-| **llm** | Multi-provider routing, token budgeting, formatting | `LLMProvider`, `TaskRouter`, `ContextManager`, `Formatter` | 900 |
-| **github** | Async GitHub client, repo discovery, guidelines parsing | `GitHubClient`, `RepoDiscovery`, `GuidelineParser` | 550 |
-| **analysis** | Multi-strategy code analysis, skill loading | `CodeAnalyzer`, `SkillLoader`, `SecurityStrategy`, `CodeQualityStrategy` | 700 |
-| **generator** | LLM-powered fix generation, self-review, quality scoring | `ContributionGenerator`, `QualityScorer` | 300 |
-| **orchestrator** | Pipeline coordination, hunt mode, outcome memory | `Pipeline`, `HuntMode`, `Memory` | 500 |
-| **pr** | PR creation, patrol monitoring, CLA/DCO handling | `PRManager`, `PRPatrol`, `CLAHandler` | 542 |
-| **issues** | Issue discovery and solving | `IssueSolver` | 339 |
-| **agents** | Sub-agent registry with parallel execution | `SubAgentRegistry`, `AnalyzerAgent`, `GeneratorAgent` | 158 |
-| **tools** | Tool protocol (MCP-inspired) | `Tool`, `ToolResult`, `GitHubTool`, `LLMTool` | 59 |
-| **mcp_server** | MCP stdio server (14 tools for Claude) | `MCPServer` | 180 |
-| **web** | FastAPI REST API, webhooks, dashboard | `app`, `api_routes`, `webhook_handler` | 324 |
-| **cli** | Click-based CLI, Rich TUI | `main`, `tui` | 150+ |
-| **scheduler** | APScheduler wrapper for cron automation | `Scheduler` | 100 |
-| **plugins** | Entry-point plugin system | `AnalyzerPlugin`, `GeneratorPlugin` | 161 |
-| **templates** | YAML-based contribution templates | `TemplateRegistry` | 96 |
-| **notifications** | Slack/Discord/Telegram integrations | `Notifier` | 248 |
-| **sandbox** | Docker-based code validation | `Sandbox` | 244 |
-| **mcp** | MCP JSON-RPC client | `MCPClient` | 180 |
+| Module | Purpose | Key Types/Functions | Files |
+|--------|---------|---------------------|-------|
+| **core** | Config, models, middleware, events, errors, quotas, profiles, retry | `ContribAIConfig`, `Repository`, `Finding`, `Contribution`, `Middleware`, `EventBus` | 9 |
+| **llm** | Multi-provider routing, token budgeting, formatting | `LlmProvider`, `TaskRouter`, `ContextManager`, `Formatter` | 7 |
+| **github** | Async GitHub client (REST+GraphQL), repo discovery, guideline parsing | `GitHubClient`, `RepoDiscovery`, `GuidelineParser` | 4 |
+| **analysis** | Multi-strategy analysis, progressive skills, triage, AST intel, repo map | `CodeAnalyzer`, `AnalysisSkill`, `TriageEngine`, `AstIntel`, `RepoMap` | 8 |
+| **generator** | LLM-powered fix generation, self-review, quality scoring, validation | `ContributionGenerator`, `QualityScorer`, `SelfReview` | 6 |
+| **orchestrator** | Pipeline coordination, SQLite memory, review gate | `Pipeline`, `Memory`, `ReviewGate` | 4 |
+| **pr** | PR creation, patrol monitoring | `PRManager`, `PRPatrol` | 3 |
+| **issues** | Issue discovery and solving | `IssueSolver` | 2 |
+| **agents** | Sub-agent registry with parallel execution | `SubAgentRegistry` | 2 |
+| **tools** | Tool protocol (MCP-inspired) | `Tool`, `ToolResult` | 1 |
+| **mcp** | MCP stdio server (21 tools) + client | `McpServer`, `StdioMcpClient` | 3 |
+| **web** | Axum REST API, API key auth, webhook receiver, dashboard | `run_server`, `AppState`, `verify_webhook_signature` | 1 |
+| **cli** | Clap-based CLI with 13 commands | `Cli`, `Commands` | 1 |
+| **scheduler** | Tokio-based cron automation | `ContribScheduler` | 1 |
+| **plugins** | Trait-based plugin system | `AnalyzerPlugin`, `GeneratorPlugin` | 1 |
+| **templates** | Contribution templates | `TemplateRegistry` | 1 |
+| **notifications** | Slack/Discord/Telegram integrations | `Notifier` | 1 |
+| **sandbox** | Code validation | `Sandbox` | 1 |
 
 ---
 
@@ -62,23 +62,24 @@ contribai/
 ```
                      ┌──────────────────┐
                      │   CLI / Web      │
+                     │  (clap / axum)   │
                      └────────┬─────────┘
                               │
                    ┌──────────┴──────────┐
                    ▼                     ▼
             ┌─────────────┐      ┌──────────────┐
             │ Orchestrator│      │  Scheduler   │
-            │  + Pipeline │      │              │
+            │  + Pipeline │      │   (tokio)    │
             └─────┬───────┘      └──────────────┘
                   │
         ┌─────────┼─────────┬──────────┐
         ▼         ▼         ▼          ▼
     ┌────────┐┌────────┐┌────────┐┌────────┐
     │Analysis││Generator││  PR    ││ Issues │
-    │        ││         ││Manager ││ Solver │
+    │+Triage ││+Scorer ││Manager ││ Solver │
     └────┬───┘└────┬───┘└────┬───┘└────┬───┘
-         │         │         │        │
-         └─────────┼─────────┴────────┘
+         │         │         │         │
+         └─────────┼─────────┴─────────┘
                    │
         ┌──────────┴──────────┐
         ▼                     ▼
@@ -93,7 +94,8 @@ contribai/
          │    CORE      │
          │ (Models,     │
          │  Config,     │
-         │  Middleware) │
+         │  Middleware,  │
+         │  Events)     │
          └──────────────┘
 ```
 
@@ -104,71 +106,75 @@ contribai/
 ## Key Entry Points
 
 ### CLI Entry Point
-- **File:** `contribai/cli/main.py`
-- **Function:** `cli()` (Click group)
-- **Main Commands:**
+- **File:** `crates/contribai-rs/src/cli/mod.rs`
+- **Struct:** `Cli` (clap derive)
+- **13 Commands:**
   - `hunt` — Autonomous multi-round hunting
   - `run` — Single full pipeline run
   - `target` — Analyze specific repo
   - `solve` — Solve issues in a repo
   - `serve` — Start web dashboard
-  - `schedule` — Start scheduler
+  - `schedule` — Start cron scheduler
+  - `patrol` — Monitor open PRs
+  - `mcp-server` — Start MCP stdio server
+  - `analyze` — Dry-run analysis on target
+  - `status` — Show PR status table
+  - `config` — Display effective configuration
+  - `cleanup` — Remove stale forks
+  - `stats` — Summary statistics
 
 ### Web Entry Point
-- **File:** `contribai/web/server.py`
-- **Class:** `app` (FastAPI application)
+- **File:** `crates/contribai-rs/src/web/mod.rs`
+- **Framework:** Axum (tokio-based)
 - **Key Routes:**
+  - `GET /` — Dashboard HTML
   - `GET /api/stats` — Overall statistics
   - `GET /api/repos` — Analyzed repos list
-  - `POST /api/run` — Trigger pipeline
-  - `GET /dashboard` — Web UI
-  - `POST /webhooks/github` — GitHub webhook receiver
-
-### Orchestrator Entry Point
-- **File:** `contribai/orchestrator/pipeline.py`
-- **Class:** `Pipeline`
-- **Key Methods:**
-  - `run()` — Execute pipeline on single repo
-  - `hunt()` — Execute hunt mode
-  - `process_repo()` — Core analysis → generation → PR flow
+  - `POST /api/run` — Trigger pipeline (API key required)
+  - `POST /api/run/target` — Target specific repo (API key required)
+  - `POST /api/webhooks/github` — GitHub webhook (HMAC-SHA256)
+  - `GET /api/health` — Health check
 
 ### MCP Server Entry Point
-- **File:** `contribai/mcp_server.py`
-- **Class:** `MCPServer`
-- **Protocol:** stdio JSON-RPC
-- **Exposed Tools:** 14 (GitHub read/write, safety, maintenance)
+- **File:** `crates/contribai-rs/src/mcp/server.rs`
+- **Protocol:** stdio JSON-RPC (Model Context Protocol)
+- **Exposed Tools:** 21 (GitHub read/write, safety, maintenance, PR management)
 
 ---
 
 ## Critical Data Structures
 
-### Core Models (Pydantic)
+### Core Models (serde + struct)
 
-| Class | Purpose | Key Fields |
-|-------|---------|-----------|
-| `Repository` | GitHub repo metadata | `owner`, `name`, `url`, `stars`, `language`, `last_commit` |
-| `Finding` | Detected issue | `type`, `file`, `line`, `description`, `severity`, `context` |
-| `Contribution` | Proposed fix | `finding_id`, `code_change`, `explanation`, `confidence_score` |
-| `PRResult` | PR outcome | `pr_number`, `url`, `status`, `feedback`, `time_to_merge` |
-| `Config` | Application config | `github`, `llm`, `discovery`, `analysis`, `pipeline` |
+| Struct | Purpose | Key Fields |
+|--------|---------|-----------|
+| `Repository` | GitHub repo metadata | `owner`, `name`, `full_name`, `language`, `stars`, `forks`, `topics` |
+| `Finding` | Detected issue | `finding_type`, `file_path`, `line`, `description`, `severity`, `context` |
+| `Contribution` | Proposed fix | `finding`, `code_change`, `explanation`, `confidence_score` |
+| `PRResult` | PR outcome | `pr_number`, `url`, `status` |
+| `ContribAIConfig` | Application config | `github`, `llm`, `discovery`, `analysis`, `pipeline`, `web` |
 
-### Database Schema (SQLite)
+### Database Schema (SQLite via rusqlite, 7 tables)
 
-| Table | Purpose | Key Columns |
-|-------|---------|-------------|
-| `analyzed_repos` | Track analyzed repos | repo_id, timestamp, status |
-| `submitted_prs` | All created PRs | repo_id, pr_number, url, status |
-| `findings_cache` | Cached analysis results | repo_id, findings_json, timestamp |
-| `run_log` | Pipeline execution history | timestamp, status, repo_count, pr_count |
-| `pr_outcomes` | PR merge/close outcomes | pr_number, outcome, feedback, time_to_close |
-| `repo_preferences` | Learned repo patterns | repo_id, preferred_types, rejected_types |
+| Table | Purpose |
+|-------|---------|
+| `analyzed_repos` | Track analyzed repositories |
+| `submitted_prs` | All created PRs |
+| `findings_cache` | Cached analysis results (72h TTL) |
+| `run_log` | Pipeline execution history |
+| `pr_outcomes` | PR merge/close outcomes for learning |
+| `repo_preferences` | Learned repo patterns |
+| `ci_monitor` | CI status tracking |
 
-### Event Types (15 total)
+### Event Types (18 total)
 
-```python
-RepositoryDiscovered | RepositoryAnalyzed | FindingDetected | ContributionGenerated |
-PRCreated | PRMerged | PRClosed | PRPatrolStarted | ReviewFound | CodeChangeGenerated |
-ConfigLoaded | PipelineStarted | PipelineCompleted | ErrorOccurred | RateLimitExceeded
+```rust
+RepositoryDiscovered | RepositoryAnalyzed | FindingDetected |
+ContributionGenerated | PRCreated | PRMerged | PRClosed |
+PRPatrolStarted | ReviewFound | CodeChangeGenerated |
+ConfigLoaded | PipelineStarted | PipelineCompleted |
+ErrorOccurred | RateLimitExceeded | IssueFound |
+SchedulerStarted | WebhookReceived
 ```
 
 ---
@@ -177,243 +183,131 @@ ConfigLoaded | PipelineStarted | PipelineCompleted | ErrorOccurred | RateLimitEx
 
 | Category | Technologies |
 |----------|--------------|
-| **Language** | Python 3.11+ |
-| **Web** | FastAPI, Uvicorn, Jinja2 |
-| **GitHub** | GitPython, httpx (async) |
-| **LLM** | google-genai, openai, anthropic |
-| **Data** | Pydantic, aiosqlite, SQLite |
-| **CLI** | Click, Rich |
-| **Scheduling** | APScheduler |
-| **Task Runtime** | asyncio |
-| **Code Validation** | Docker (optional), ast.parse (fallback) |
-| **Testing** | pytest, pytest-asyncio, pytest-cov |
-| **Linting** | ruff |
-| **Type Checking** | pyright (implicit) |
+| **Language** | Rust 2021 edition |
+| **Async Runtime** | Tokio (multi-threaded) |
+| **Web** | Axum, tower, hyper |
+| **HTTP Client** | reqwest (async) |
+| **GitHub** | reqwest + REST/GraphQL APIs |
+| **LLM** | reqwest (Gemini, OpenAI, Anthropic, Ollama) |
+| **Serialization** | serde, serde_json, serde_yaml |
+| **Database** | rusqlite (sync, wrapped in tokio::task::spawn_blocking) |
+| **CLI** | clap (derive macros) |
+| **Logging** | tracing, tracing-subscriber |
+| **Code Parsing** | tree-sitter (8 language grammars) |
+| **Crypto** | hmac, sha2, hex (webhook verification) |
+| **Testing** | cargo test (built-in), 323 tests |
+| **Linting** | clippy |
+| **Formatting** | rustfmt |
 
 ---
 
-## File Organization Principles
+## Rust-Only Features (Not in Python)
 
-### Module Structure
-
-Each module follows this pattern:
-
-```
-module/
-├── __init__.py          # Public API exports
-├── main_class.py        # Primary class (e.g., analyzer.py)
-├── sub_component.py     # Supporting components
-└── exceptions.py        # Module-specific exceptions (optional)
-```
-
-### Configuration
-
-- **Source:** `contribai/core/config.py` (Pydantic model)
-- **File:** `config.yaml` (YAML with schema validation)
-- **Overrides:** Environment variables (prefix: `CONTRIBAI_`)
-- **Presets:** Named profiles (YAML files in `contribai/core/profiles.py`)
-
-### Database
-
-- **Location:** `~/.contribai/memory.db` (auto-initialized)
-- **Type:** SQLite 3.x
-- **Async:** aiosqlite
-- **Migrations:** Embedded in `Memory.init()` method
-
-### Events
-
-- **Emit Location:** Throughout codebase
-- **Handling:** `core/events.py` (EventBus)
-- **Logging:** `~/.contribai/events.jsonl` (append-only)
-- **Consumption:** Notifications, webhooks, monitoring
-
----
-
-## Async/Concurrency Model
-
-### Async First Design
-
-- **All I/O:** async (GitHub API, LLM API, file operations)
-- **Concurrency Control:** `asyncio.gather()` with `Semaphore` (max 3 concurrent repos)
-- **Database Access:** aiosqlite (async SQLite)
-- **Rate Limiting:** Middleware intercepts, enforces delays
-
-### Key Async Patterns
-
-```python
-# Pipeline: async repo processing
-for repo in repos:
-    task = pipeline.process_repo(repo)
-    tasks.append(task)
-await asyncio.gather(*tasks, return_exceptions=True)
-
-# LLM: async with retry
-async with retry_handler(max_retries=3, backoff=exponential):
-    response = await llm_provider.complete(prompt)
-
-# Database: async transaction
-async with memory.transaction():
-    await memory.add_finding(finding)
-    await memory.increment_stats()
-```
-
----
-
-## Configuration Hierarchy
-
-1. **Defaults** — Hardcoded in `Config` class
-2. **File** — `config.yaml` (overrides defaults)
-3. **Profiles** — Named presets (override file)
-4. **Environment** — Env vars `CONTRIBAI_*` (override profiles)
-5. **CLI Flags** — Command-line args (override all)
-
-**Load Order:** CLI flags → Env vars → Profile → YAML → Defaults
-
----
-
-## Testing Structure
-
-```
-tests/
-├── unit/                   # Isolated module tests
-│   ├── test_analyzer.py
-│   ├── test_generator.py
-│   ├── test_github_client.py
-│   ├── test_llm_provider.py
-│   ├── test_memory.py
-│   ├── test_middleware.py
-│   ├── test_pr_manager.py
-│   └── ... (25+ test files)
-├── integration/            # End-to-end pipeline tests
-│   └── test_pipeline.py
-└── conftest.py             # Shared fixtures
-```
-
-**Test Coverage:** ~53% (threshold: 50%)
-
-**Test Tools:**
-- `pytest` — Test framework
-- `pytest-asyncio` — Async test support
-- `pytest-cov` — Coverage reporting
-- `unittest.mock` — Mocking
+| Feature | Module | Description |
+|---------|--------|-------------|
+| **Tree-sitter AST** | `analysis/ast_intel.rs` | Parse 8 languages (Rust, Python, JS, TS, Go, Java, C, C++) |
+| **PageRank file ranking** | `analysis/repo_map.rs` | Rank file importance via import graph analysis |
+| **12-signal triage** | `analysis/triage.rs` | Score issues by recency, complexity, maintainer activity, etc. |
+| **3-tier context compression** | `analysis/compressor.rs` | Language-aware signature extraction for 5 languages |
+| **Language rules** | `analysis/language_rules.rs` | Per-language analysis rules and patterns |
+| **Leaderboard** | `core/leaderboard.rs` | Contribution tracking and ranking |
 
 ---
 
 ## Common Code Patterns
 
-### Pattern 1: Async Context Manager for Resources
+### Pattern 1: Async with Tokio
 
-```python
-async with GitHubClient(token) as client:
-    repos = await client.search_repos(language="python")
+```rust
+pub async fn process_repo(&self, repo: &Repository) -> Result<PipelineResult> {
+    let findings = self.analyzer.analyze(repo).await?;
+    let contributions = self.generator.generate_fixes(&findings).await?;
+    let prs = self.pr_manager.create_prs(repo, &contributions).await?;
+    Ok(PipelineResult { repo: repo.clone(), prs })
+}
 ```
 
-### Pattern 2: Pydantic Model + Validation
+### Pattern 2: Serde Models
 
-```python
-class Config(BaseModel):
-    github: GitHubConfig
-    llm: LLMConfig
-    discovery: DiscoveryConfig
-
-    model_config = ConfigDict(validate_assignment=True)
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Finding {
+    pub finding_type: String,
+    pub file_path: String,
+    pub line: usize,
+    pub description: String,
+    pub severity: Severity,
+}
 ```
 
-### Pattern 3: Middleware Chain
+### Pattern 3: Trait-Based Providers
 
-```python
-@middleware("rate_limit")
-@middleware("validation")
-@middleware("retry")
-async def process_repo(repo: Repository) -> PipelineResult:
-    ...
+```rust
+pub trait LlmProvider: Send + Sync {
+    async fn complete(&self, prompt: &str) -> Result<String>;
+    fn name(&self) -> &str;
+}
 ```
 
-### Pattern 4: Provider Factory + Strategy
+### Pattern 4: Middleware Chain
 
-```python
-def create_llm_provider(config: LLMConfig) -> LLMProvider:
-    if config.provider == "gemini":
-        return GeminiProvider(config)
-    elif config.provider == "openai":
-        return OpenAIProvider(config)
+```rust
+pub struct MiddlewareChain {
+    middlewares: Vec<Box<dyn Middleware>>,
+}
+// RateLimit → Validation → Retry → DCO → QualityGate
 ```
 
-### Pattern 5: Event Bus + Typed Events
+### Pattern 5: Event Bus
 
-```python
-event_bus.emit(RepositoryAnalyzed(
-    repo=repo,
-    findings_count=len(findings),
-    timestamp=datetime.now()
-))
-```
-
----
-
-## Import Conventions
-
-### Relative Imports (Within Modules)
-```python
-from .analyzer import CodeAnalyzer
-from .skills import load_skills
-```
-
-### Absolute Imports (Cross-Module)
-```python
-from contribai.core.models import Repository, Finding
-from contribai.llm.provider import create_llm_provider
-from contribai.analysis.analyzer import CodeAnalyzer
-```
-
-### Avoid Circular Imports
-Use TYPE_CHECKING for type hints:
-```python
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from contribai.core.models import Repository
+```rust
+event_bus.emit(Event::PRCreated {
+    repo: repo.full_name.clone(),
+    pr_number,
+    url: pr_url.clone(),
+    timestamp: Utc::now(),
+});
 ```
 
 ---
 
-## Performance Considerations
+## Testing Structure
 
-| Component | Optimization | Details |
-|-----------|--------------|---------|
-| **LLM Context** | Token budgeting | Max 30k tokens per analysis |
-| **GitHub API** | Rate limit respect | Check limits before burst requests |
-| **Database** | Batch inserts | Insert 100+ findings in one transaction |
-| **Analysis** | Progressive skills | Load only needed skills (by language/framework) |
-| **Concurrency** | Semaphore(3) | Max 3 repos processed simultaneously |
-| **Caching** | 72h TTL | Cache analysis results per repo |
+Tests are co-located in each source file using `#[cfg(test)] mod tests`:
+
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_feature() {
+        // Arrange, Act, Assert
+    }
+
+    #[tokio::test]
+    async fn test_async_feature() {
+        // Async test with tokio runtime
+    }
+}
+```
+
+**Test Coverage:** 323 tests across 62 source files
+**Test Command:** `cargo test` (all tests), `cargo test <module>` (specific)
 
 ---
 
-## Security Considerations
+## Configuration
 
-### Secrets Management
-- **Never log** API keys, tokens, or credentials
-- **Use env vars** for sensitive config
-- **Validate LLM output** before code execution
-- **Sandbox execution** (Docker or ast.parse)
-
-### External Code Safety
-- **Syntax validation** before commit
-- **Balanced bracket check** before parsing
-- **ast.parse fallback** if Docker unavailable
-- **Manual review gate** (optional) for high-risk changes
-
-### Access Control
-- **GitHub token** required (PAT scope: `repo`, `workflow`)
-- **API key auth** on dashboard endpoints
-- **HMAC validation** on webhooks
-- **No direct shell exec** (use GitPython, httpx)
+- **Source:** `crates/contribai-rs/src/core/config.rs`
+- **Format:** YAML (`config.yaml`) + environment variables (`CONTRIBAI_*`)
+- **Load Order:** CLI flags → Env vars → YAML → Defaults
+- **Key Structs:** `ContribAIConfig`, `GitHubConfig`, `LlmConfig`, `DiscoveryConfig`, `WebConfig`
 
 ---
 
 ## Document Metadata
 
 - **Created:** 2026-03-28
-- **Last Updated:** 2026-03-28
-- **Owner:** Technical Writer / Documentation Team
-- **References:** README.md, docs/ARCHITECTURE.md, docs/system-architecture.md
+- **Last Updated:** 2026-03-31
+- **Version:** 5.0.0 (Rust rewrite)

@@ -17,26 +17,43 @@ You are the **Technical Writer** of ContribAI. You ensure all documentation is a
 
 ### 2. Developer Documentation
 - **CONTRIBUTING.md** – How to contribute (setup, standards, PR process)
-- **docs/architecture.md** – System architecture with diagrams
+- **docs/system-architecture.md** – System architecture with diagrams
 - **docs/adr/** – Architecture Decision Records
-- **docs/development.md** – Dev setup, testing, debugging
+- **docs/development.md** – Dev setup (`cargo build`, `cargo test`), debugging
 
 ### 3. API Documentation
-- Docstrings on every public class, method, and function
-- Format: Google-style docstrings
-```python
-def analyze(self, repo: Repository) -> AnalysisResult:
-    """Run full analysis on a repository.
+Rust doc comments on every public struct, trait, method, and function.
+Format: `///` for item-level docs, `//!` for module-level docs.
 
-    Args:
-        repo: GitHub repository to analyze.
+```rust
+//! GitHub API client for ContribAI.
+//!
+//! Provides async wrappers for REST and GraphQL GitHub APIs.
 
-    Returns:
-        AnalysisResult with all findings from enabled analyzers.
+/// Run full analysis on a repository.
+///
+/// # Arguments
+/// * `repo` - GitHub repository to analyze.
+///
+/// # Returns
+/// `AnalysisResult` containing all findings from enabled skills.
+///
+/// # Errors
+/// Returns [`AnalysisError`] if analysis fails fatally.
+///
+/// # Example
+/// ```rust
+/// let result = analyzer.analyze(&repo).await?;
+/// println!("Found {} issues", result.findings.len());
+/// ```
+pub async fn analyze(&self, repo: &Repository) -> Result<AnalysisResult, AnalysisError> {
+    ...
+}
+```
 
-    Raises:
-        AnalysisError: If analysis fails fatally.
-    """
+Generate API docs with:
+```bash
+cargo doc --open
 ```
 
 ### 4. Changelog
@@ -60,11 +77,22 @@ For each release, create clear release notes covering:
 
 ## Writing Standards
 - Use **active voice**: "ContribAI analyzes..." not "The code is analyzed by..."
-- Include **code examples** for every feature
+- Include **code examples** in Rust for every feature
 - Keep sentences **short** (max 25 words)
 - Use **headers** to break up long docs
 - Include a **TL;DR** at the top of long documents
-- Test all code examples to ensure they work
+- Test all code examples: `cargo test --doc`
+
+## Rust Doc Comment Cheatsheet
+| Syntax | Use |
+|--------|-----|
+| `///` | Item-level doc (fn, struct, enum, trait) |
+| `//!` | Module/crate-level doc (top of file) |
+| `# Arguments` | Document parameters |
+| `# Returns` | Document return value |
+| `# Errors` | Document error variants |
+| `# Panics` | Document panic conditions |
+| `# Example` | Runnable doc test (tested by `cargo test --doc`) |
 
 ## Files Owned
 - `README.md`

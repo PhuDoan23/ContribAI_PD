@@ -12,36 +12,37 @@ git clone https://github.com/tang-vu/ContribAI.git
 cd ContribAI
 ```
 
-2. **Verify Python version**
+2. **Verify Rust toolchain**
 // turbo
 ```bash
-python --version
+rustup --version
+cargo --version
 ```
-Requires Python 3.11+.
-
-3. **Create virtual environment**
+Requires Rust 2021 edition (stable toolchain). Install via https://rustup.rs if absent:
 ```bash
-python -m venv .venv
-```
-
-4. **Activate virtual environment**
-```bash
-# Windows PowerShell
-.venv\Scripts\Activate.ps1
-
-# macOS/Linux
-source .venv/bin/activate
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-5. **Install with dev dependencies**
+3. **Build the project**
 ```bash
-pip install -e ".[dev]"
+cargo build --manifest-path crates/contribai-rs/Cargo.toml
+```
+
+4. **Build release binary**
+```bash
+cargo build --manifest-path crates/contribai-rs/Cargo.toml --release
+```
+
+5. **Add binary to PATH (optional)**
+```bash
+# Add to shell profile, or run directly via:
+export PATH="$PATH:$(pwd)/crates/contribai-rs/target/release"
 ```
 
 6. **Verify installation**
 // turbo
 ```bash
-contribai --help
+./crates/contribai-rs/target/release/contribai --help
 ```
 
 7. **Set up configuration**
@@ -55,14 +56,15 @@ Edit `config.yaml` and add:
 8. **Verify configuration**
 // turbo
 ```bash
-contribai config
+./crates/contribai-rs/target/release/contribai config
 ```
 
 9. **Run tests to verify setup**
 // turbo
 ```bash
-pytest tests/ -v --tb=short
+cargo test --manifest-path crates/contribai-rs/Cargo.toml
 ```
+Expect 323 tests to pass.
 
 10. **Read the project docs**
 Key files to read:
@@ -74,17 +76,15 @@ Key files to read:
 11. **Explore the codebase**
 // turbo
 ```bash
-python -c "
-import pathlib
-for p in sorted(pathlib.Path('contribai').rglob('*.py')):
-    lines = len(p.read_text().splitlines())
-    print(f'  {str(p):50s} {lines:>4d} lines')
-"
+find crates/contribai-rs/src -name "*.rs" | sort | while read f; do
+  lines=$(wc -l < "$f")
+  printf "  %-60s %4d lines\n" "$f" "$lines"
+done
 ```
 
 12. **Try a dry run**
 ```bash
-contribai analyze https://github.com/some-small-public-repo
+./crates/contribai-rs/target/release/contribai analyze https://github.com/some-small-public-repo
 ```
 
 13. **Make your first contribution**

@@ -9,48 +9,66 @@ description: Security audit workflow – scan for vulnerabilities, review depend
 1. **Check for hardcoded secrets**
 // turbo
 ```bash
-ruff check contribai/ --select S105,S106,S107
+rg -i "password\s*=|secret\s*=|api_key\s*=|token\s*=" \
+  crates/contribai-rs/src/ \
+  --glob "*.rs" \
+  --no-heading
 ```
-Also manually search for common patterns:
-// turbo
+Also check for raw string literals that look like tokens:
 ```bash
-python -c "import pathlib; files = list(pathlib.Path('contribai').rglob('*.py')); [print(f'{f}:{i+1}: {line.strip()}') for f in files for i, line in enumerate(f.read_text().splitlines()) if any(kw in line.lower() for kw in ['password', 'secret', 'api_key', 'token'] if 'config' not in str(f))]"
+rg "ghp_[A-Za-z0-9]{36}|AIza[A-Za-z0-9_-]{35}" \
+  crates/contribai-rs/src/ --glob "*.rs"
 ```
 
 2. **Check dependencies for known vulnerabilities**
 ```bash
-pip audit
+cargo audit --manifest-path crates/contribai-rs/Cargo.toml
 ```
 
-3. **Review security-sensitive files**
+3. **Run clippy security lints**
+// turbo
+```bash
+cargo clippy --manifest-path crates/contribai-rs/Cargo.toml -- -D warnings \
+  -W clippy::unwrap_used \
+  -W clippy::expect_used \
+  -W clippy::panic
+```
+
+4. **Review security-sensitive files**
 Manually inspect these critical files:
-- `contribai/core/config.py` – Token/key handling
-- `contribai/github/client.py` – API authentication
-- `contribai/llm/provider.py` – API key handling
-- `contribai/pr/manager.py` – Git operations
-- `contribai/analysis/analyzer.py` – LLM output parsing
+- `crates/contribai-rs/src/core/config.rs` – Token/key handling
+- `crates/contribai-rs/src/github/client.rs` – API authentication
+- `crates/contribai-rs/src/llm/provider.rs` – API key handling
+- `crates/contribai-rs/src/pr/manager.rs` – Git operations
+- `crates/contribai-rs/src/analysis/analyzer.rs` – LLM output parsing
 
-4. **Check for unsafe deserialization**
+5. **Check for unsafe deserialization**
 // turbo
 ```bash
-python -c "import pathlib; files = list(pathlib.Path('contribai').rglob('*.py')); [print(f'{f}:{i+1}: {line.strip()}') for f in files for i, line in enumerate(f.read_text().splitlines()) if 'yaml.load(' in line and 'safe_load' not in line]"
+# Check for unsafe serde usage or raw eval-equivalent patterns
+rg "from_str_unchecked|unsafe\s*\{" \
+  crates/contribai-rs/src/ --glob "*.rs"
 ```
 
-5. **Check .gitignore covers sensitive files**
+6. **Check .gitignore covers sensitive files**
 // turbo
 ```bash
-python -c "required = ['config.yaml', '.env', '*.db', '*.sqlite']; import pathlib; gi = pathlib.Path('.gitignore').read_text(); [print(f'✅ {r}' if r in gi else f'❌ MISSING: {r}') for r in required]"
+for f in "config.yaml" ".env" "*.db" "*.sqlite"; do
+  grep -q "$f" .gitignore \
+    && echo "OK: $f" \
+    || echo "MISSING: $f"
+done
 ```
 
-6. **Verify LLM output sanitization**
+7. **Verify LLM output sanitization**
 Check that all LLM responses are treated as untrusted:
-- JSON parsing uses try/except
-- No `eval()` or `exec()` on LLM output
-- File paths from LLM are validated
-- No shell commands constructed from LLM output
+- JSON parsing uses `serde_json::from_str` inside a `match` or `?` — no `unwrap()`
+- No `std::process::Command` constructed from raw LLM output
+- File paths from LLM are validated before use
+- No `unsafe` blocks in LLM response handling
 
-7. **Create security report**
+8. **Create security report**
 Document findings in `docs/security-audit-YYYY-MM-DD.md`
 
-8. **Fix critical issues immediately**
+9. **Fix critical issues immediately**
 Any critical finding should be fixed on a `fix/security-*` branch with priority review.

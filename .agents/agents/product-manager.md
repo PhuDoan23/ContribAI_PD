@@ -19,7 +19,7 @@ Key value propositions:
 
 ### 2. Roadmap
 
-#### ✅ Phase 1 – Core Pipeline (v0.1.0) – DONE
+#### ✅ Phase 1 – Core Pipeline (v0.1.0 Python) – DONE
 - [x] Config system, data models, exceptions
 - [x] LLM providers (Gemini, OpenAI, Anthropic, Ollama)
 - [x] GitHub API client + repo discovery
@@ -29,32 +29,49 @@ Key value propositions:
 - [x] Pipeline orchestrator + memory
 - [x] CLI interface
 
-#### ✅ Phase 2 - Hardening (v0.2.0) - DONE
+#### ✅ Phase 2 – Hardening (v0.2.0 Python) – DONE
 - [x] Comprehensive test suite (169 tests)
 - [x] CI/CD pipeline (GitHub Actions: lint, format, tests, security)
 - [x] Docker containerization (multi-stage Dockerfile)
 - [x] Rate limiting & retry logic (exponential backoff + jitter)
 - [x] Better LLM prompt engineering
-- [x] Response caching to reduce API costs (LRU cache)
+- [x] Response caching to reduce API costs
 
-#### ✅ Phase 3 - Intelligence (v0.3.0) - DONE
-- [x] Issue-driven contributions (`contribai solve <url>`)
-- [x] Framework-specific analysis (Django, Flask, FastAPI, React, Express)
+#### ✅ Phase 3 – Intelligence (v0.3.0 Python) – DONE
+- [x] Issue-driven contributions
+- [x] Framework-specific analysis
 - [x] Contribution quality scoring (7-check quality gate)
+
+#### ✅ Phase 4 – Rust Rewrite (v5.0.0) – DONE
+Full rewrite from Python to Rust 2021. All Python phases superseded.
+- [x] 62 `.rs` files, ~21,400 LOC, 323 tests
+- [x] Tokio async runtime (replaced asyncio)
+- [x] Axum web dashboard (replaced FastAPI)
+- [x] Clap CLI with 13 commands (replaced Click)
+- [x] rusqlite memory (replaced aiosqlite)
+- [x] serde models (replaced Pydantic)
+- [x] thiserror error enums (replaced exception classes)
+- [x] Trait-based plugin system (replaced ABCs)
+- [x] MCP server with 21 tools (was 14)
+- [x] Tree-sitter AST for 8 languages
+- [x] PageRank file ranking (import graph analysis)
+- [x] 12-signal triage engine
+- [x] 3-tier context compression
+- [x] CI monitor + outcome learning
+- [x] Vertex AI token cache
+- [x] JSONL event log
+
+#### 🔄 Phase 5 – Scale (v5.1.0)
+- [ ] Web dashboard enhancements (charts, filtering)
 - [ ] Multi-file contributions (cross-file refactoring)
-- [ ] Learning from PR feedback (accepted vs rejected)
-
-#### 🔄 Phase 4 - Scale (v0.4.0)
-- [ ] Web dashboard for monitoring
-- [ ] Scheduled runs (cron-based)
-- [ ] Parallel repo processing
+- [ ] Learning from PR feedback (merge/close outcomes)
+- [ ] Parallel repo processing (rayon / multi-task)
 - [ ] Contribution templates gallery
-- [ ] Community contribution config sharing
 
-#### 🚀 Phase 5 - Ecosystem (v1.0.0)
+#### 🚀 Phase 6 – Ecosystem (v6.0.0)
 - [ ] GitHub App integration
 - [ ] Organization-wide analysis
-- [ ] Custom analyzer plugins
+- [ ] Custom analyzer plugins (expanded plugin API)
 - [ ] Marketplace for strategies
 - [ ] Analytics & impact reports
 
@@ -81,6 +98,6 @@ Labels:
 - **User satisfaction**: Maintainer feedback on PR quality
 
 ## Files Owned
-- `docs/roadmap.md`
+- `docs/project-roadmap.md`
 - `.github/ISSUE_TEMPLATE/` – Issue templates
 - `docs/metrics.md` – Success metrics tracking

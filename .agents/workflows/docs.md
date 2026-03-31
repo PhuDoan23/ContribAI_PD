@@ -9,36 +9,26 @@ description: Documentation workflow – create, update and verify project docume
 1. **Review current docs**
 // turbo
 ```bash
-python -c "import pathlib; docs = list(pathlib.Path('.').rglob('*.md')); print('Documentation files:'); [print(f'  {d} ({d.stat().st_size} bytes)') for d in sorted(docs) if '.git' not in str(d)]"
+find . -name "*.md" -not -path "./.git/*" | sort | while read f; do
+  printf "  %-60s %6d bytes\n" "$f" "$(wc -c < "$f")"
+done
 ```
 
-2. **Check docstring coverage**
+2. **Check doc comment coverage**
 // turbo
 ```bash
-python -c "
-import pathlib, ast, sys
-total = covered = 0
-for f in pathlib.Path('contribai').rglob('*.py'):
-    try:
-        tree = ast.parse(f.read_text())
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                if node.name.startswith('_'): continue
-                total += 1
-                if ast.get_docstring(node): covered += 1
-    except: pass
-pct = (covered/total*100) if total else 0
-print(f'Docstring coverage: {covered}/{total} ({pct:.0f}%)')
-"
+# Build docs and surface warnings about missing /// comments on public items
+cargo doc --manifest-path crates/contribai-rs/Cargo.toml --no-deps 2>&1 | grep "warning"
 ```
+Target: no `missing_docs` warnings on public structs, enums, and functions.
 
 3. **Update README.md**
 Ensure these sections are present and current:
 - Project description & badges
 - Features list
-- Installation instructions
+- Installation instructions (cargo build --release)
 - Configuration guide
-- Usage examples (all CLI commands)
+- Usage examples (all 13 CLI commands)
 - Project structure
 - Development setup
 - License
@@ -55,33 +45,39 @@ Add entries for any changes since last update:
 
 5. **Update CONTRIBUTING.md**
 Verify it covers:
-- Development setup
-- Code standards
-- Testing requirements
+- Development setup (rustup, cargo build)
+- Code standards (cargo fmt, cargo clippy)
+- Testing requirements (cargo test, 323 tests)
 - PR process
 - Agent roles
 
-6. **Add missing docstrings**
-Use Google-style format:
-```python
-def function_name(param: str) -> bool:
-    """Short description.
-
-    Args:
-        param: Description of param.
-
-    Returns:
-        True if condition met.
-
-    Raises:
-        ValueError: If param is empty.
-    """
+6. **Add missing doc comments**
+Use Rust `///` doc comment format on all public items:
+```rust
+/// Short one-line description.
+///
+/// Longer explanation if needed.
+///
+/// # Arguments
+///
+/// * `param` - Description of the parameter.
+///
+/// # Returns
+///
+/// `true` if condition met.
+///
+/// # Errors
+///
+/// Returns [`Error::Config`] if the input is empty.
+pub fn function_name(param: &str) -> Result<bool, Error> {
+    // ...
+}
 ```
 
-7. **Verify code examples work**
+7. **Generate and open API docs**
 // turbo
 ```bash
-python -c "print('contribai package importable:', end=' '); exec('from contribai import __version__; print(__version__)')"
+cargo doc --manifest-path crates/contribai-rs/Cargo.toml --no-deps --open
 ```
 
 8. **Check for broken links**

@@ -9,74 +9,91 @@ description: Testing workflow – run tests, check coverage, fix failures, add m
 1. **Run all tests**
 // turbo
 ```bash
-pytest tests/ -v --tb=short
+cargo test --manifest-path crates/contribai-rs/Cargo.toml
 ```
 
 2. **Check coverage**
 // turbo
 ```bash
-pytest tests/ --cov=contribai --cov-report=term-missing --cov-fail-under=50
+# Using cargo-tarpaulin
+cargo tarpaulin --manifest-path crates/contribai-rs/Cargo.toml --out term
+
+# Using cargo-llvm-cov (alternative)
+cargo llvm-cov --manifest-path crates/contribai-rs/Cargo.toml
 ```
 
 3. **Identify untested code**
-Look at the `Missing` column in the coverage report to find uncovered lines.
+Look at uncovered lines in the tarpaulin/llvm-cov output. Focus on public functions and error paths.
 
 4. **Run specific module tests**
 // turbo
 ```bash
-pytest tests/unit/test_config.py -v -s
+cargo test --manifest-path crates/contribai-rs/Cargo.toml analysis::skills
 ```
 
 5. **Run tests with debug output**
 // turbo
 ```bash
-pytest tests/ -v -s --log-cli-level=DEBUG
+RUST_LOG=debug cargo test --manifest-path crates/contribai-rs/Cargo.toml -- --nocapture
 ```
 
 6. **Write missing tests**
-Follow the QA Engineer standards:
-```python
-# File: tests/unit/test_<module>.py
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+Tests are co-located in the same `.rs` file as the code under test:
+```rust
+// At the bottom of the module file (e.g. src/analysis/skills.rs)
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-# Arrange-Act-Assert pattern
-async def test_function_happy_path():
-    # Arrange
-    mock_dep = AsyncMock()
-    sut = SystemUnderTest(mock_dep)
-    
-    # Act
-    result = await sut.do_thing(input_data)
-    
-    # Assert
-    assert result.status == "success"
-    mock_dep.called_method.assert_called_once()
+    // Synchronous test
+    #[test]
+    fn test_function_happy_path() {
+        // Arrange
+        let input = "some input";
 
-# Parametrize for edge cases
-@pytest.mark.parametrize("input,expected", [
-    ("valid", True),
-    ("", False),
-    (None, False),
-])
-def test_validation(input, expected):
-    assert validate(input) == expected
+        // Act
+        let result = function_under_test(input);
+
+        // Assert
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().status, "success");
+    }
+
+    // Async test (requires tokio)
+    #[tokio::test]
+    async fn test_async_function() {
+        let result = async_function_under_test("input").await;
+        assert!(result.is_ok());
+    }
+
+    // Parameterized-style: use a loop or separate test functions
+    #[test]
+    fn test_validation_valid() { assert!(validate("valid")); }
+    #[test]
+    fn test_validation_empty() { assert!(!validate("")); }
+}
 ```
 
-7. **Run only failing tests**
+7. **Run only a specific test by name**
 // turbo
 ```bash
-pytest tests/ -v --lf
+cargo test --manifest-path crates/contribai-rs/Cargo.toml test_name -- --exact
 ```
 
 8. **Generate HTML coverage report**
 // turbo
 ```bash
-pytest tests/ --cov=contribai --cov-report=html
+cargo llvm-cov --manifest-path crates/contribai-rs/Cargo.toml --html
 ```
-Open `htmlcov/index.html` to browse coverage visually.
+Open `target/llvm-cov/html/index.html` to browse coverage visually.
 
 ## Test Categories
-- `tests/unit/` – Isolated module tests with mocked dependencies
-- `tests/integration/` – Multi-module tests
-- `tests/fixtures/` – Canned responses and sample data
+
+Tests live inside `#[cfg(test)] mod tests { ... }` blocks co-located in each `.rs` source file:
+
+- `src/core/*.rs` – Config, model, event, error unit tests
+- `src/analysis/*.rs` – Skill detection, analyzer, repo-map tests
+- `src/github/*.rs` – GitHub client integration tests (requires token)
+- `src/mcp/*.rs` – MCP tool dispatch tests
+
+The project has **323 tests** total across all modules.

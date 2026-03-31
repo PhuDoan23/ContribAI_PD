@@ -26,27 +26,28 @@ git checkout <branch-name>
 4. **Run tests locally**
 // turbo
 ```bash
-pytest tests/ -v --tb=short
+cargo test --manifest-path crates/contribai-rs/Cargo.toml
 ```
 
 5. **Run lint check**
 // turbo
 ```bash
-ruff check contribai/
+cargo clippy --manifest-path crates/contribai-rs/Cargo.toml -- -D warnings
 ```
 
 6. **Review code changes**
 Go through the Code Reviewer checklist:
 - [ ] Functionality: code does what PR says, edge cases handled
-- [ ] Architecture: correct module, no circular imports
-- [ ] Code quality: functions < 50 lines, files < 400 lines, no duplication
-- [ ] Documentation: docstrings, README updated if needed
-- [ ] Testing: new code has tests, edge cases covered
+- [ ] Architecture: correct module, no circular dependencies
+- [ ] Code quality: functions < 50 lines, files < 200 lines, no duplication
+- [ ] Documentation: `///` doc comments on public items, README updated if needed
+- [ ] Testing: new code has `#[test]` / `#[tokio::test]` coverage, edge cases covered
 - [ ] Security: no secrets, inputs validated, LLM output untrusted
-- [ ] Performance: no N+1, async for I/O
+- [ ] Performance: no blocking calls in async context, no unnecessary clones
 
 7. **Check for breaking changes**
-Review `contribai/core/models.py` and `contribai/core/config.py` for any model changes that could break existing configs or data.
+Review `crates/contribai-rs/src/core/models.rs` and `crates/contribai-rs/src/core/config.rs`
+for any struct/enum changes that could break existing configs or serialized data.
 
 8. **Leave review comments**
 Use severity labels:

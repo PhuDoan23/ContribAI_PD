@@ -8,15 +8,15 @@ description: ContribAI development workflow - code, patrol, hunt, and release
 
 ## Code Changes
 
-1. Make changes to the relevant files in `contribai/`
+1. Make changes to the relevant files in `crates/contribai-rs/src/`
 2. Run formatting and linting:
    ```bash
-   ruff format contribai/ tests/
-   ruff check contribai/ tests/ --fix
+   cargo fmt --manifest-path crates/contribai-rs/Cargo.toml
+   cargo clippy --manifest-path crates/contribai-rs/Cargo.toml -- -D warnings
    ```
 3. Run tests:
    ```bash
-   pytest tests/ -q --tb=short --cov=contribai --cov-fail-under=50
+   cargo test --manifest-path crates/contribai-rs/Cargo.toml
    ```
 4. Commit with conventional commits + DCO signoff:
    ```bash
@@ -27,22 +27,22 @@ description: ContribAI development workflow - code, patrol, hunt, and release
    git push origin main
    ```
 
-## Architecture (v3.0.4)
+## Architecture (v5.0.0)
 
 Key modules to know:
 
 | Module | Purpose |
 |--------|---------|
-| `core/middleware.py` | Pipeline middleware chain (RateLimit, Validation, Retry, DCO, QualityGate) |
-| `core/events.py` | EventBus with 15 typed events + JSONL logging |
-| `analysis/skills.py` | 20+ progressive analysis skills + framework detection |
-| `agents/registry.py` | Sub-agent registry (Analyzer, Generator, Patrol, Compliance) |
-| `tools/protocol.py` | Tool protocol (GitHubTool, LLMTool) |
-| `orchestrator/memory.py` | SQLite persistence + outcome learning (7 tables) |
-| `analysis/analyzer.py` | Code analysis + context compression |
-| `mcp_server.py` | MCP stdio server (14 tools for Claude Desktop) |
-| `mcp/mcp_client.py` | MCP client for external tool servers |
-| `sandbox/sandbox.py` | Docker-based code validation with local fallback |
+| `core/middleware.rs` | Pipeline middleware chain (RateLimit, Validation, Retry, DCO, QualityGate) |
+| `core/events.rs` | EventBus with 15 typed events + JSONL logging |
+| `analysis/skills.rs` | 17 progressive analysis skills + framework detection |
+| `agents/registry.rs` | Sub-agent registry (Analyzer, Generator, Patrol, Compliance) |
+| `tools/mod.rs` | Tool protocol (GitHubTool, LLMTool) |
+| `orchestrator/memory.rs` | rusqlite persistence + outcome learning (7 tables) |
+| `analysis/analyzer.rs` | Code analysis + context compression |
+| `mcp/server.rs` | MCP stdio server (21 tools for Claude Desktop) |
+| `mcp/client.rs` | MCP client for external tool servers |
+| `sandbox/mod.rs` | Docker-based code validation with local fallback |
 
 ## PR Patrol
 
@@ -60,10 +60,10 @@ contribai patrol
 ```
 
 ### Key files:
-- `contribai/pr/patrol.py` - Patrol engine
-- `contribai/core/models.py` - FeedbackItem, PatrolResult, FeedbackAction
-- `contribai/github/client.py` - GitHub API (create_or_update_file, get_assigned_issues)
-- `contribai/cli/main.py` - CLI patrol command
+- `crates/contribai-rs/src/pr/patrol.rs` - Patrol engine
+- `crates/contribai-rs/src/core/models.rs` - FeedbackItem, PatrolResult, FeedbackAction
+- `crates/contribai-rs/src/github/client.rs` - GitHub API (create_or_update_file, get_assigned_issues)
+- `crates/contribai-rs/src/cli/mod.rs` - CLI patrol command
 
 ### DCO Signoff
 All commits via GitHub API automatically include `Signed-off-by:` trailer.
@@ -103,7 +103,7 @@ contribai run owner/repo --dry-run
 
 ## Release
 
-1. Bump version in `contribai/__init__.py` and `pyproject.toml`
+1. Bump version in `crates/contribai-rs/Cargo.toml`
 2. Update `CHANGELOG.md` with new version section
 3. Update `README.md` badges (version, test count)
 4. Update `AGENTS.md` if architecture changed

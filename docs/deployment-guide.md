@@ -1,34 +1,36 @@
 # Deployment Guide
 
-**Version:** 4.0.0 | **Last Updated:** 2026-03-28
+**Version:** 5.0.0 | **Language:** Rust | **Last Updated:** 2026-03-31
 
 ---
 
 ## Quick Start
 
-### Option 1: Local Installation (Development)
+### Option 1: Build from Source (Development)
 
 ```bash
 # Clone repository
 git clone https://github.com/tang-vu/ContribAI.git
-cd ContribAI
+cd ContribAI/crates/contribai-rs
 
-# Install with dev dependencies
-pip install -e ".[dev]"
+# Build (debug)
+cargo build
+
+# Build (release, optimized)
+cargo build --release
 
 # Configure
 cp config.example.yaml config.yaml
 # Edit config.yaml with your API keys
 
 # Run
-contribai hunt
-contribai serve  # Start web dashboard at :8787
+./target/release/contribai-rs hunt
+./target/release/contribai-rs serve  # Web dashboard at :8787
 ```
 
 ### Option 2: Docker (Production-Ready)
 
 ```bash
-# Copy configuration
 cp config.example.yaml config.yaml
 # Edit config.yaml
 
@@ -38,114 +40,94 @@ docker compose up -d dashboard
 # Run single analysis
 docker compose run --rm runner run
 
-# Start scheduler for automation
+# Start scheduler
 docker compose up -d dashboard scheduler
 ```
 
-### Option 3: Kubernetes (Enterprise)
+### Option 3: Static Binary (Simplest)
 
 ```bash
-# Create namespace
-kubectl create namespace contribai
+# Download pre-built binary (from releases)
+# Or build locally:
+cd crates/contribai-rs && cargo build --release
 
-# Deploy
-kubectl apply -k kubernetes/overlays/production/
-
-# Check status
-kubectl get pods -n contribai
-kubectl logs -n contribai -l app=contribai-runner
+# Single static binary — no runtime dependencies
+cp target/release/contribai-rs /usr/local/bin/contribai
+contribai --help
 ```
 
 ---
 
 ## Installation Methods
 
-### Method 1: Pip (Recommended for Development)
+### Method 1: Cargo Build (Recommended for Development)
 
 ```bash
-# From GitHub
+# Clone & build
 git clone https://github.com/tang-vu/ContribAI.git
-cd ContribAI
+cd ContribAI/crates/contribai-rs
 
-# Development install (editable)
-pip install -e ".[dev]"
+# Development build (fast compile, debug symbols)
+cargo build
 
-# Production install (minimal deps)
-pip install -e "."
+# Release build (optimized, ~5x faster runtime)
+cargo build --release
 
-# Specific version
-pip install contribai==4.0.0
+# Run tests to verify
+cargo test
 ```
 
 **Verification:**
 
 ```bash
-contribai --version
-# ContribAI 4.0.0
-
-contribai --help
-# Shows all commands
+./target/release/contribai-rs --help
+# Shows all 13 commands
 ```
+
+**Prerequisites:**
+- Rust 1.75+ (install via [rustup](https://rustup.rs))
+- C compiler (for tree-sitter grammars)
+- OpenSSL dev headers (Linux: `libssl-dev`, macOS: via homebrew)
 
 ### Method 2: Docker (Recommended for Production)
 
-**Dockerfile included. Build:**
-
-```bash
-# Build image locally
-docker build -t contribai:4.0.0 .
-
-# Or pull from registry
-docker pull tang-vu/contribai:4.0.0
-```
-
-**Key Docker images:**
-
 ```dockerfile
-# Base: Python 3.11 slim
-FROM python:3.11-slim
+# Multi-stage build — small final image
+FROM rust:1.75 AS builder
+WORKDIR /app
+COPY crates/contribai-rs/ .
+RUN cargo build --release
 
-# Install: contribai + dependencies
-RUN pip install contribai==4.0.0
-
-# Expose: 8787 (web dashboard)
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/target/release/contribai-rs /usr/local/bin/contribai
 EXPOSE 8787
-
-# Entry: contribai CLI or server
 ENTRYPOINT ["contribai"]
 ```
 
-### Method 3: Kubernetes Helm (Enterprise)
+```bash
+# Build image
+docker build -t contribai:5.0.0 .
+
+# Run
+docker run --rm contribai:5.0.0 --help
+```
+
+### Method 3: Kubernetes (Enterprise)
 
 ```bash
-# Add Helm repo (future)
-helm repo add contribai https://charts.contribai.dev
-helm repo update
-
-# Install
-helm install contribai contribai/contribai \
-  --namespace contribai \
-  --create-namespace \
-  --values values.yaml
-
-# Check deployment
-kubectl get deployment -n contribai
-kubectl logs -n contribai deployment/contribai-runner
+kubectl create namespace contribai
+kubectl apply -k kubernetes/overlays/production/
+kubectl get pods -n contribai
 ```
 
 ---
 
 ## Configuration
 
-### Configuration File Structure
+### Configuration File
 
 Create `config.yaml` from `config.example.yaml`:
-
-```bash
-cp config.example.yaml config.yaml
-```
-
-**Full configuration schema:**
 
 ```yaml
 # GitHub Configuration
@@ -157,7 +139,7 @@ github:
 
 # LLM Configuration
 llm:
-  provider: "gemini"                  # gemini | openai | anthropic | ollama | vertex
+  provider: "gemini"                  # gemini | openai | anthropic | ollama
   model: "gemini-2.5-flash"           # Model ID
   api_key: "your_api_key"             # API key for provider
   temperature: 0.5                    # Creativity (0.0-2.0)
@@ -166,83 +148,64 @@ llm:
 
 # Discovery Configuration
 discovery:
-  languages:                          # Target languages
-    - python
-    - javascript
-  stars_range:                        # Star range filter
-    - 100
-    - 5000
-  min_activity_days: 180              # Require recent commits
-  exclude_repos: []                   # Repos to skip
+  languages: ["python", "javascript"]
+  stars_range: [100, 5000]
+  min_activity_days: 180
+  exclude_repos: []
 
 # Analysis Configuration
 analysis:
-  enabled_analyzers:                  # Which analyzers to run
+  enabled_analyzers:
     - security
     - code_quality
     - performance
     - documentation
     - ui_ux
     - refactoring
-  max_file_size_kb: 50                # Skip large files
-  skip_patterns:                      # File patterns to skip
-    - "*.md"
-    - "*.yaml"
-    - "*.json"
-
-# Contribution Configuration
-contribution:
-  pr_style: "professional"            # professional | minimal
-  commit_format: "conventional"       # conventional | simple
-  include_explanation: true           # Add explanation to PR body
+  max_file_size_kb: 50
+  skip_patterns: ["*.md", "*.yaml", "*.json"]
 
 # Pipeline Configuration
 pipeline:
-  concurrent_repos: 3                 # Max simultaneous repos
-  retry_attempts: 2                   # Retry on failure
-  retry_backoff_seconds: 2            # Backoff multiplier
-  timeout_seconds: 300                # Operation timeout
+  concurrent_repos: 3
+  retry_attempts: 2
+  retry_backoff_seconds: 2
+  timeout_seconds: 300
 
 # Multi-Model Task Routing
 multi_model:
   task_routing:
-    analysis: "economy"               # Fast + cheap
-    generation: "performance"         # Powerful + expensive
-    review: "balanced"                # Medium tier
-
-# Notifications
-notifications:
-  enabled: true
-  channels:
-    slack: "https://hooks.slack.com/services/..."
-    discord: "https://discord.com/api/webhooks/..."
-    telegram: "https://api.telegram.org/bot..."
+    analysis: "economy"
+    generation: "performance"
+    review: "balanced"
 
 # Web Dashboard
 web:
   host: "0.0.0.0"
   port: 8787
-  debug: false
-  api_auth_key: "your-secret-key"
+  api_keys: ["your-secret-key"]       # API key auth for mutations
+  webhook_secret: "github-secret"     # HMAC-SHA256 webhook verification
+
+# Notifications
+notifications:
+  slack: "https://hooks.slack.com/services/..."
+  discord: "https://discord.com/api/webhooks/..."
+  telegram: "https://api.telegram.org/bot..."
 
 # Scheduler
 scheduler:
   enabled: true
   timezone: "UTC"
-  max_concurrent_jobs: 3
 ```
 
 ### Environment Variables (Override YAML)
-
-All config keys can be set via environment variables with `CONTRIBAI_` prefix:
 
 ```bash
 export CONTRIBAI_GITHUB_TOKEN="ghp_..."
 export CONTRIBAI_LLM_PROVIDER="gemini"
 export CONTRIBAI_LLM_API_KEY="your_api_key"
 export CONTRIBAI_LLM_MODEL="gemini-2.5-flash"
-export CONTRIBAI_GITHUB_MAX_PRS_PER_DAY="15"
-export CONTRIBAI_DISCOVERY_LANGUAGES="python,javascript"
+export GITHUB_WEBHOOK_SECRET="your-webhook-secret"
 export CONTRIBAI_WEB_PORT="8787"
 ```
 
@@ -250,45 +213,13 @@ export CONTRIBAI_WEB_PORT="8787"
 
 ### Profile Presets
 
-Use pre-configured profiles instead of editing config:
+Defined in `crates/contribai-rs/src/core/profiles.rs`:
 
 ```bash
-# List available profiles
-contribai profile list
-
-# Run with profile
-contribai profile security-focused
-contribai profile docs-focused
-contribai profile full-scan
-contribai profile gentle
-```
-
-**Profile definitions in `contribai/core/profiles.py`:**
-
-```python
-PROFILES = {
-    "security-focused": {
-        "enabled_analyzers": ["security"],
-        "max_prs_per_day": 5,
-        "temperature": 0.2,
-    },
-    "docs-focused": {
-        "enabled_analyzers": ["documentation"],
-        "max_prs_per_day": 10,
-    },
-    "full-scan": {
-        "enabled_analyzers": [
-            "security", "code_quality", "performance",
-            "documentation", "ui_ux", "refactoring"
-        ],
-        "max_prs_per_day": 20,
-    },
-    "gentle": {
-        "enabled_analyzers": ["code_quality"],
-        "max_prs_per_day": 3,
-        "temperature": 0.3,
-    },
-}
+contribai profile security-focused   # Security analyzers only, conservative
+contribai profile docs-focused       # Documentation analyzers only
+contribai profile full-scan          # All analyzers, higher PR limit
+contribai profile gentle             # Code quality only, low PR limit
 ```
 
 ---
@@ -302,41 +233,30 @@ PROFILES = {
 | `CONTRIBAI_GITHUB_TOKEN` | GitHub PAT (required) | `ghp_abc123...` |
 | `CONTRIBAI_LLM_API_KEY` | LLM provider API key | `AIzaSy...` (Gemini) |
 
-### Optional (Override config.yaml)
+### Optional
 
-| Variable | Description | Example |
+| Variable | Description | Default |
 |----------|-------------|---------|
-| `CONTRIBAI_LLM_PROVIDER` | LLM provider | `gemini`, `openai`, `anthropic` |
+| `CONTRIBAI_LLM_PROVIDER` | LLM provider | `gemini` |
 | `CONTRIBAI_LLM_MODEL` | Model ID | `gemini-2.5-flash` |
-| `CONTRIBAI_GITHUB_MAX_PRS_PER_DAY` | Daily PR limit | `15` |
-| `CONTRIBAI_WEB_PORT` | Dashboard port | `8787` |
-| `CONTRIBAI_DISCOVERY_LANGUAGES` | Target languages | `python,javascript` |
-| `CONTRIBAI_SCHEDULER_ENABLED` | Enable scheduler | `true`, `false` |
-
-### System
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `CONTRIBAI_HOME` | `~/.contribai` | Config + data directory |
-| `CONTRIBAI_LOG_LEVEL` | `INFO` | Logging level |
-| `CONTRIBAI_LOG_FILE` | `~/.contribai/app.log` | Log file path |
+| `GITHUB_WEBHOOK_SECRET` | Webhook HMAC secret | (none) |
+| `CONTRIBAI_HOME` | Data directory | `~/.contribai` |
+| `CONTRIBAI_LOG_LEVEL` | Log level | `INFO` |
+| `RUST_LOG` | Rust tracing filter | `contribai_rs=info` |
 
 ---
 
 ## Docker Deployment
 
-### Docker Compose (Easiest)
+### Docker Compose
 
 ```yaml
-# docker-compose.yml (included)
 version: '3.8'
-
 services:
   dashboard:
-    image: tang-vu/contribai:4.0.0
-    command: serve
-    ports:
-      - "8787:8787"
+    build: .
+    command: serve --host 0.0.0.0 --port 8787
+    ports: ["8787:8787"]
     environment:
       CONTRIBAI_GITHUB_TOKEN: ${GITHUB_TOKEN}
       CONTRIBAI_LLM_API_KEY: ${LLM_API_KEY}
@@ -346,7 +266,7 @@ services:
     restart: unless-stopped
 
   runner:
-    image: tang-vu/contribai:4.0.0
+    build: .
     command: run
     environment:
       CONTRIBAI_GITHUB_TOKEN: ${GITHUB_TOKEN}
@@ -354,214 +274,101 @@ services:
     volumes:
       - ./config.yaml:/app/config.yaml
       - contribai-data:/root/.contribai
-    depends_on:
-      - dashboard
-    restart: unless-stopped
+    depends_on: [dashboard]
 
   scheduler:
-    image: tang-vu/contribai:4.0.0
-    command: schedule --cron "0 */6 * * *"  # Every 6 hours
+    build: .
+    command: schedule --cron "0 */6 * * *"
     environment:
       CONTRIBAI_GITHUB_TOKEN: ${GITHUB_TOKEN}
       CONTRIBAI_LLM_API_KEY: ${LLM_API_KEY}
     volumes:
       - ./config.yaml:/app/config.yaml
       - contribai-data:/root/.contribai
-    depends_on:
-      - dashboard
+    depends_on: [dashboard]
     restart: unless-stopped
 
 volumes:
   contribai-data:
 ```
 
-**Usage:**
-
 ```bash
-# Copy config
-cp config.example.yaml config.yaml
-
-# Set environment variables
 export GITHUB_TOKEN="ghp_..."
 export LLM_API_KEY="AIzaSy..."
-
-# Start dashboard
 docker compose up -d dashboard
-
-# View logs
 docker compose logs -f dashboard
-
-# Run one-shot analysis
-docker compose run --rm runner run
-
-# Stop services
-docker compose down
-
-# Clean up data
-docker compose down -v  # Remove volumes too
-```
-
-### Docker Build (Manual)
-
-```bash
-# Build image
-docker build -t contribai:latest .
-
-# Run dashboard
-docker run -d \
-  -p 8787:8787 \
-  -e CONTRIBAI_GITHUB_TOKEN="ghp_..." \
-  -e CONTRIBAI_LLM_API_KEY="AIzaSy..." \
-  -v $(pwd)/config.yaml:/app/config.yaml \
-  -v contribai-data:/root/.contribai \
-  contribai:latest serve
-
-# Run analysis
-docker run --rm \
-  -e CONTRIBAI_GITHUB_TOKEN="ghp_..." \
-  -e CONTRIBAI_LLM_API_KEY="AIzaSy..." \
-  -v $(pwd)/config.yaml:/app/config.yaml \
-  -v contribai-data:/root/.contribai \
-  contribai:latest run
 ```
 
 ---
 
-## CLI Commands Reference
+## CLI Commands Reference (13 Commands)
 
-### Core Commands
+### Core
 
 ```bash
-# Autonomous hunting (multi-round discovery + contributions)
-contribai hunt                                # Hunt for repos and contribute
-contribai hunt --rounds 5                     # 5 rounds
-contribai hunt --delay 15                     # 15min inter-round delay
-contribai hunt --mode both                    # analysis + issues (default)
-contribai hunt --mode analysis                # analysis only
-contribai hunt --mode issues                  # issues only
-
-# Single full pipeline run
-contribai run                                 # Full pipeline on discovered repos
-contribai run --dry-run                       # Preview without PRs
-contribai run --language python               # Filter by language
-
-# Target specific repo
-contribai target https://github.com/owner/repo
-contribai target https://github.com/owner/repo --dry-run
-
-# Solve issues
-contribai solve https://github.com/owner/repo # Fetch & solve open issues
+contribai hunt                        # Autonomous multi-round hunting
+contribai hunt --rounds 5 --delay 15  # 5 rounds, 15min delay
+contribai run                         # Single full pipeline
+contribai run --dry-run               # Preview without PRs
+contribai target <url>                # Analyze specific repo
+contribai target <url> --dry-run      # Preview specific repo
+contribai solve <url>                 # Solve open issues
+contribai analyze <url>               # Dry-run analysis
 ```
 
 ### Web & Automation
 
 ```bash
-# Start web dashboard
-contribai serve                               # Dashboard at :8787
-contribai serve --port 9000                   # Custom port
-contribai serve --host 0.0.0.0                # Listen on all interfaces
-
-# Start scheduler
-contribai schedule --cron "0 */6 * * *"       # Every 6 hours
-contribai schedule --cron "0 9 * * *"         # Daily at 9 AM
-contribai schedule --once                     # Run once, then exit
+contribai serve                       # Dashboard at :8787
+contribai serve --port 9000           # Custom port
+contribai schedule --cron "0 */6 * * *"  # Cron scheduler
+contribai mcp-server                  # Start MCP stdio server
 ```
 
-### Templates & Profiles
+### Status & Management
 
 ```bash
-# List templates
-contribai templates
-
-# List profiles
-contribai profile list
-
-# Run with profile
-contribai run --profile security-focused
-contribai hunt --profile docs-focused
-```
-
-### Status & Cleanup
-
-```bash
-# Check overall status
-contribai status                              # Active PRs + stats
-contribai stats                               # Summary statistics
-contribai info                                # System information
-
-# Cleanup stale forks
-contribai cleanup                             # Remove forks with no open PRs
-contribai cleanup --dry-run                   # Preview
-```
-
-### Utilities
-
-```bash
-# Check config
-contribai config                              # Show effective config
-
-# Test LLM connection
-contribai test-llm                            # Verify LLM provider
-
-# Test GitHub access
-contribai test-github                         # Verify GitHub token
-
-# View help
-contribai --help
-contribai run --help
+contribai status                      # PR status table (colored)
+contribai config                      # Show effective config (masked tokens)
+contribai patrol                      # Monitor PRs for review feedback
+contribai cleanup                     # Remove stale forks
+contribai stats                       # Summary statistics
 ```
 
 ---
 
 ## Web Dashboard
 
-### Access
+### Routes
 
-- **URL:** `http://localhost:8787`
-- **API:** `http://localhost:8787/api`
-- **Status:** Check `GET /api/stats`
+| Route | Method | Auth | Purpose |
+|-------|--------|------|---------|
+| `/` | GET | No | Dashboard UI |
+| `/api/stats` | GET | No | Statistics |
+| `/api/repos` | GET | No | Analyzed repos |
+| `/api/health` | GET | No | Health check |
+| `/api/run` | POST | API Key | Trigger pipeline |
+| `/api/run/target` | POST | API Key | Target specific repo |
+| `/api/webhooks/github` | POST | HMAC-SHA256 | GitHub webhook |
 
-### Web Routes
-
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `GET /` | GET | Dashboard UI |
-| `GET /api/stats` | GET | Overall statistics |
-| `GET /api/repos` | GET | Analyzed repositories |
-| `GET /api/prs` | GET | Created pull requests |
-| `GET /api/runs` | GET | Pipeline execution history |
-| `POST /api/run` | POST | Trigger pipeline run |
-| `POST /api/stop` | POST | Stop running pipeline |
-| `GET /api/health` | GET | Health check |
-| `POST /webhooks/github` | POST | GitHub webhook receiver |
-
-### API Authentication
-
-Dashboard API requires authentication for mutations:
+### API Key Authentication
 
 ```bash
-# Set API key in config.yaml
-api_auth_key: "your-secret-key"
+# Pass API key as query parameter
+curl -X POST "http://localhost:8787/api/run?api_key=your-secret-key"
 
-# Or via environment
-export CONTRIBAI_WEB_API_AUTH_KEY="your-secret-key"
-
-# Use in API calls
-curl -H "X-API-Key: your-secret-key" -X POST http://localhost:8787/api/run
+# Constant-time comparison prevents timing attacks
 ```
 
 ### Webhook Setup (GitHub)
 
 1. Go to repo settings → Webhooks
-2. Payload URL: `http://your-server:8787/webhooks/github`
+2. Payload URL: `http://your-server:8787/api/webhooks/github`
 3. Content type: `application/json`
-4. Events: `push`, `pull_request`, `issues`
-5. Secret: (optional, validated if set)
+4. Secret: set to match `GITHUB_WEBHOOK_SECRET` env var
+5. Events: `push`, `pull_request`, `issues`
 
-**Webhook triggers:**
-- On issue created → Solve issue
-- On PR comment → Patrol + auto-fix
-- On push → Reanalyze changed files
+Webhook verification uses HMAC-SHA256 via `X-Hub-Signature-256` header.
 
 ---
 
@@ -570,26 +377,15 @@ curl -H "X-API-Key: your-secret-key" -X POST http://localhost:8787/api/run
 ### Cron Syntax
 
 ```bash
-# Every 6 hours
-contribai schedule --cron "0 */6 * * *"
-
-# Daily at 9 AM UTC
-contribai schedule --cron "0 9 * * *"
-
-# Every Monday at 6 PM
-contribai schedule --cron "0 18 * * 1"
-
-# Every 30 minutes
-contribai schedule --cron "*/30 * * * *"
-
-# Every weekday at 8 AM
-contribai schedule --cron "0 8 * * 1-5"
+contribai schedule --cron "0 */6 * * *"    # Every 6 hours
+contribai schedule --cron "0 9 * * *"      # Daily at 9 AM UTC
+contribai schedule --cron "0 18 * * 1"     # Every Monday at 6 PM
+contribai schedule --cron "0 8 * * 1-5"    # Every weekday at 8 AM
 ```
 
 ### Systemd Integration (Linux)
 
 ```ini
-# /etc/systemd/system/contribai-scheduler.service
 [Unit]
 Description=ContribAI Scheduler
 After=network.target
@@ -597,11 +393,9 @@ After=network.target
 [Service]
 Type=simple
 User=contribai
-WorkingDirectory=/home/contribai/contribai
 ExecStart=/usr/local/bin/contribai schedule --cron "0 */6 * * *"
 Restart=always
 RestartSec=10
-
 Environment="CONTRIBAI_GITHUB_TOKEN=ghp_..."
 Environment="CONTRIBAI_LLM_API_KEY=AIzaSy..."
 
@@ -609,192 +403,43 @@ Environment="CONTRIBAI_LLM_API_KEY=AIzaSy..."
 WantedBy=multi-user.target
 ```
 
-**Enable & start:**
-
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable contribai-scheduler
 sudo systemctl start contribai-scheduler
-sudo systemctl status contribai-scheduler
-```
-
-### Kubernetes CronJob
-
-```yaml
-# kubernetes/cronjob.yaml
-apiVersion: batch/v1
-kind: CronJob
-metadata:
-  name: contribai-run
-spec:
-  schedule: "0 */6 * * *"  # Every 6 hours
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          containers:
-          - name: contribai
-            image: tang-vu/contribai:4.0.0
-            command: ["contribai", "run"]
-            env:
-            - name: CONTRIBAI_GITHUB_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: contribai-secrets
-                  key: github-token
-            - name: CONTRIBAI_LLM_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: contribai-secrets
-                  key: llm-api-key
-            volumeMounts:
-            - name: config
-              mountPath: /etc/contribai
-          volumes:
-          - name: config
-            configMap:
-              name: contribai-config
-          restartPolicy: OnFailure
 ```
 
 ---
 
 ## Troubleshooting
 
-### Common Issues
-
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| `401 Unauthorized (GitHub)` | Invalid token | Check token format, ensure scopes |
-| `429 Too Many Requests` | API rate limit hit | Reduce concurrent repos, add delays |
+| `401 Unauthorized (GitHub)` | Invalid token | Check token format and scopes |
+| `429 Too Many Requests` | API rate limit | Reduce concurrent_repos, add delays |
 | `RESOURCE_EXHAUSTED (LLM)` | LLM rate limit | Use economy model, reduce max_tokens |
-| `Connection refused` | Service not running | Start service: `contribai serve` |
-| `Database locked` | Concurrent access conflict | Wait, then retry |
-| `ImportError: No module named 'contribai'` | Not installed | `pip install -e ".[dev]"` |
+| `Connection refused` | Service not running | `contribai serve` |
+| `Database locked` | Concurrent access | Wait and retry |
+| Link errors on build | Missing C compiler/OpenSSL | Install build deps (gcc, libssl-dev) |
 
 ### Debug Mode
 
 ```bash
-# Enable debug logging
-contribai run -v                              # Verbose mode
-contribai run -vv                             # Very verbose
+# Enable debug logging via Rust tracing
+RUST_LOG=contribai_rs=debug contribai run
 
-# Set environment
+# Or set in config
 export CONTRIBAI_LOG_LEVEL=DEBUG
-contribai run
 
-# Check logs
-tail -f ~/.contribai/app.log
+# Check event log
+tail -f ~/.contribai/events.jsonl | jq
 ```
 
 ### Health Checks
 
 ```bash
-# Dashboard health
 curl http://localhost:8787/api/health
-
-# LLM provider
-contribai test-llm
-
-# GitHub access
-contribai test-github
-
-# Database
-python -c "
-import asyncio
-from contribai.orchestrator.memory import Memory
-async def check():
-    mem = Memory()
-    await mem.init()
-    stats = await mem.get_stats()
-    print(stats)
-asyncio.run(check())
-"
-```
-
-### Performance Tuning
-
-```yaml
-# config.yaml optimizations
-
-# Reduce concurrent processing
-pipeline:
-  concurrent_repos: 1  # Instead of 3
-
-# Faster LLM responses
-llm:
-  model: "gemini-2.5-flash"  # Fast model
-  temperature: 0.3           # Less creative = faster
-  max_tokens: 1000           # Shorter responses
-
-# Skip slow analyzers
-analysis:
-  enabled_analyzers:
-    - code_quality           # Fast
-    - security               # Fast
-  # Skip: performance (slow), ui_ux (slow)
-
-# Reduce discovery scope
-discovery:
-  languages: ["python"]      # Single language
-  stars_range: [1000, 10000] # Narrower range
-```
-
----
-
-## Scaling & Production
-
-### Single-Instance Production
-
-**Recommended setup:**
-
-```yaml
-# config.yaml
-github:
-  max_prs_per_day: 20      # Conservative limit
-  rate_limit_margin: 200   # Higher safety margin
-
-llm:
-  provider: "gemini"
-  model: "gemini-2.5-flash"
-  temperature: 0.3         # Deterministic output
-
-pipeline:
-  concurrent_repos: 3      # 3 parallel repos
-  retry_attempts: 3        # More retry attempts
-  timeout_seconds: 600     # 10 min timeout
-
-notifications:
-  enabled: true            # Alert on issues
-  channels:
-    slack: "..."           # Monitor channel
-```
-
-**Monitoring:**
-
-```bash
-# Check status regularly
-watch -n 60 'curl http://localhost:8787/api/stats | jq'
-
-# Monitor logs
-journalctl -u contribai-scheduler -f
-
-# Database integrity
 sqlite3 ~/.contribai/memory.db "PRAGMA integrity_check;"
-```
-
-### Multi-Instance Deployment (Future v3.1)
-
-```yaml
-# Planned: PostgreSQL backend
-database:
-  type: "postgresql"
-  url: "postgresql://user:pass@db-host:5432/contribai"
-
-# Planned: Redis for distributed rate limiting
-cache:
-  type: "redis"
-  url: "redis://cache-host:6379"
 ```
 
 ---
@@ -803,20 +448,19 @@ cache:
 
 - [ ] GitHub token stored in env vars (not in code)
 - [ ] LLM API key stored in env vars (not in code)
-- [ ] API auth key set for web dashboard
-- [ ] GitHub webhook secret configured
-- [ ] HTTPS enabled (in reverse proxy, not in app)
+- [ ] API keys configured for web dashboard mutations
+- [ ] GitHub webhook secret configured (HMAC-SHA256)
+- [ ] HTTPS enabled (reverse proxy: nginx/caddy)
 - [ ] Firewall restricts access to :8787
 - [ ] Database backups configured
-- [ ] Logs rotated (don't accumulate indefinitely)
-- [ ] Dependencies audited (`pip-audit`)
+- [ ] Dependencies audited (`cargo audit`)
 - [ ] No secrets in config.yaml template
+- [ ] Binary built with `--release` for production
 
 ---
 
 ## Document Metadata
 
 - **Created:** 2026-03-28
-- **Last Updated:** 2026-03-28
-- **Owner:** DevOps / Deployment Team
-- **References:** README.md, docs/code-standards.md, docker-compose.yml, Dockerfile
+- **Last Updated:** 2026-03-31
+- **Version:** 5.0.0 (Rust rewrite)

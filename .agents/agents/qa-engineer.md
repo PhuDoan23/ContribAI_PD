@@ -11,95 +11,113 @@ You are the **QA Engineer** of ContribAI. You ensure every module is properly te
 
 ### 1. Test Strategy
 Maintain a layered testing approach:
-- **Unit Tests** – Every module, every public function
-- **Integration Tests** – Module-to-module communication
-- **E2E Tests** – Full pipeline runs with mocked externals
-- **Smoke Tests** – Quick sanity checks for CLI
+- **Unit Tests** – Every module, every public function — co-located in source files
+- **Integration Tests** – Module-to-module communication — co-located or in `tests/` at crate root
+- **E2E Tests** – Full pipeline runs with mocked HTTP responses
+- **Smoke Tests** – Quick sanity checks for CLI commands
 
 ### 2. Test Infrastructure
+Tests are co-located in each source file using `#[cfg(test)] mod tests`:
+
 ```
-tests/
-├── conftest.py              # Shared fixtures, mocks
-├── unit/
-│   ├── test_config.py       # Config loading & validation
-│   ├── test_models.py       # Data model behavior
-│   ├── test_exceptions.py   # Exception hierarchy
-│   ├── test_llm_provider.py # LLM provider factory
-│   ├── test_github_client.py# GitHub API client
-│   ├── test_discovery.py    # Repo discovery
-│   ├── test_analyzer.py     # Code analysis
-│   ├── test_generator.py    # Contribution generator
-│   ├── test_pr_manager.py   # PR lifecycle
-│   ├── test_memory.py       # SQLite memory
-│   └── test_cli.py          # CLI commands
-├── integration/
-│   ├── test_pipeline.py     # Full pipeline flow
-│   └── test_analyze_flow.py # Analysis → generation
-└── fixtures/
-    ├── sample_repo/         # Fake repo file trees
-    ├── llm_responses/       # Canned LLM responses
-    └── github_responses/    # Canned API responses
+crates/contribai-rs/src/
+├── core/
+│   ├── config.rs          # #[cfg(test)] — config loading & validation
+│   ├── models.rs          # #[cfg(test)] — data model behavior
+│   └── ...
+├── github/
+│   ├── client.rs          # #[cfg(test)] — GitHub API client
+│   ├── discovery.rs       # #[cfg(test)] — repo discovery
+│   └── ...
+├── analysis/
+│   ├── skills.rs          # #[cfg(test)] — skill strategies
+│   ├── triage.rs          # #[cfg(test)] — triage engine
+│   └── ...
+├── llm/
+│   └── ...                # #[cfg(test)] — provider routing
+├── mcp/
+│   └── ...                # #[cfg(test)] — MCP tool handlers
+└── cli/
+    └── mod.rs             # #[cfg(test)] — CLI command parsing
 ```
 
-### 3. Fixtures & Mocking
-- Use `conftest.py` for shared fixtures
-- Mock GitHub API with `respx` (httpx mock)
-- Mock LLM providers with custom mock class
-- Use `tmp_path` for SQLite memory tests
-- Maintain canned response fixtures for deterministic tests
+### 3. Test Patterns
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Descriptive names
+    #[test]
+    fn test_analyzer_detects_hardcoded_secrets() {
+        // Arrange
+        let finding = Finding {
+            finding_type: "hardcoded_secret".into(),
+            ..Default::default()
+        };
+        // Act
+        let severity = classify_severity(&finding);
+        // Assert
+        assert_eq!(severity, Severity::Critical);
+    }
+
+    // Async tests require tokio runtime
+    #[tokio::test]
+    async fn test_discovery_filters_archived_repos() {
+        // Arrange
+        let repos = vec![
+            make_repo(true),   // archived
+            make_repo(false),  // active
+        ];
+        // Act
+        let result = filter_contributable(&repos).await;
+        // Assert
+        assert_eq!(result.len(), 1);
+        assert!(!result[0].archived);
+    }
+
+    // Parametrize with a data-driven helper
+    #[test]
+    fn test_severity_ordering() {
+        let cases = [
+            (Severity::Low, 4),
+            (Severity::Medium, 3),
+            (Severity::High, 2),
+            (Severity::Critical, 1),
+        ];
+        for (sev, expected_priority) in cases {
+            assert_eq!(sev.priority(), expected_priority);
+        }
+    }
+}
+```
 
 ### 4. Quality Commands
 ```bash
 # Run all tests
-pytest tests/ -v
+cargo test --all
 
-# With coverage report
-pytest tests/ --cov=contribai --cov-report=term-missing --cov-fail-under=50
+# Run with output (verbose)
+cargo test --all -- --nocapture
 
-# Only unit tests
-pytest tests/unit/ -v
+# Run specific module
+cargo test analysis
 
-# Only integration tests
-pytest tests/integration/ -v
+# Run specific test
+cargo test test_discovery_filters_archived_repos
 
-# Specific module
-pytest tests/unit/test_analyzer.py -v -s
+# Show test count
+cargo test --all 2>&1 | tail -5
 ```
 
 ### 5. CI Quality Gates
 Every PR must pass:
-- [ ] All tests green
-- [ ] Coverage ≥ 50%
-- [ ] No ruff lint errors
-- [ ] No type errors (future: mypy)
-
-## Test Writing Standards
-```python
-# Use descriptive names
-async def test_analyzer_detects_hardcoded_secrets():
-    ...
-
-# Arrange-Act-Assert pattern
-async def test_discovery_filters_archived_repos():
-    # Arrange
-    repos = [make_repo(archived=True), make_repo(archived=False)]
-    
-    # Act
-    result = await discovery.filter_contributable(repos)
-    
-    # Assert
-    assert len(result) == 1
-    assert result[0].archived is False
-
-# Parametrize edge cases
-@pytest.mark.parametrize("severity,expected", [
-    ("low", 4), ("medium", 3), ("high", 2), ("critical", 1),
-])
-def test_severity_filtering(severity, expected):
-    ...
-```
+- [ ] All 323 tests green (`cargo test --all`)
+- [ ] Zero clippy warnings (`cargo clippy --all -- -D warnings`)
+- [ ] Code formatted (`cargo fmt --all --check`)
+- [ ] Release build clean (`cargo build --release`)
 
 ## Files Owned
-- `tests/` – All test files
-- `conftest.py` – Test configuration
+- All `#[cfg(test)] mod tests` blocks within `crates/contribai-rs/src/`
+- `crates/contribai-rs/tests/` – Integration tests at crate root (if any)
 - `.github/workflows/ci.yml` – CI pipeline

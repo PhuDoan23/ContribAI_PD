@@ -1,6 +1,6 @@
 # Code Standards & Development Guidelines
 
-**Version:** 3.0.2 | **Python:** 3.11+ | **Status:** Active
+**Version:** 5.0.0 | **Language:** Rust 2021 | **Status:** Active
 
 ---
 
@@ -8,541 +8,443 @@
 
 | Standard | Rule |
 |----------|------|
-| **Language** | Python 3.11+ (type hints required) |
-| **Style** | ruff (autoformat + lint) |
-| **Types** | Pydantic models for data, Python type hints for functions |
-| **Async** | All I/O operations must be async |
-| **Testing** | pytest + pytest-asyncio, > 85% coverage |
-| **Database** | SQLite with aiosqlite (async) |
-| **Errors** | Custom exceptions from `core.exceptions` |
-| **Config** | Pydantic `BaseModel` with validation |
+| **Language** | Rust 2021 edition |
+| **Style** | rustfmt (autoformat) + clippy (lint) |
+| **Types** | serde structs for data, strong typing for functions |
+| **Async** | All I/O operations use Tokio async |
+| **Testing** | cargo test, 323+ tests, co-located in source files |
+| **Database** | SQLite via rusqlite (sync, wrapped with spawn_blocking) |
+| **Errors** | thiserror enums from `core::error` |
+| **Config** | serde_yaml + serde Deserialize structs |
 | **File Size** | Code files ≤ 200 LOC, split if larger |
-| **Function Size** | ≤ 50 lines (excluding docstrings) |
+| **Function Size** | ≤ 50 lines |
 
 ---
 
-## Python Conventions
+## Rust Conventions
 
-### Type Hints (MANDATORY)
+### Type Safety (MANDATORY)
 
-**All public APIs require type hints:**
+**All public APIs require explicit types:**
 
-```python
-# Good ✓
-async def analyze(
-    repo: Repository,
-    config: Config,
-    skip_cache: bool = False
-) -> AnalysisResult:
-    """Analyze a repository for issues."""
-    ...
+```rust
+// Good ✓
+pub async fn analyze(
+    &self,
+    repo: &Repository,
+    config: &ContribAIConfig,
+    skip_cache: bool,
+) -> Result<Vec<Finding>> {
+    // ...
+}
 
-# Bad ✗
-async def analyze(repo, config, skip_cache=False):
-    ...
-
-# Type hints in class attributes
-class Finding(BaseModel):
-    type: str
-    file: str
-    line: int
-    severity: Literal["critical", "high", "medium", "low"]
-    description: str
+// Bad ✗
+pub async fn analyze(&self, repo: &Repository) -> Result<Vec<Finding>> {
+    let x = get_something(); // Type not obvious from context
+}
 ```
 
 ### Async/Await (MANDATORY FOR I/O)
 
-**All I/O operations are async, none are sync:**
+**All I/O operations are async via Tokio:**
 
-```python
-# Good ✓
-async def fetch_repos(self) -> List[Repository]:
-    async with self.http_client.get("/repos") as response:
-        return await response.json()
+```rust
+// Good ✓ — async HTTP request
+pub async fn search_repositories(&self, query: &str) -> Result<Vec<Repository>> {
+    let response = self.client.get(&url)
+        .header("Authorization", format!("Bearer {}", self.token))
+        .send()
+        .await?;
+    let repos: Vec<Repository> = response.json().await?;
+    Ok(repos)
+}
 
-# Bad ✗
-def fetch_repos(self) -> List[Repository]:
-    response = requests.get("/repos")  # Blocks entire app!
-    return response.json()
+// Good ✓ — sync DB wrapped in spawn_blocking
+let stats = tokio::task::spawn_blocking(move || {
+    let conn = Connection::open(&db_path)?;
+    conn.query_row("SELECT COUNT(*) FROM submitted_prs", [], |row| row.get(0))
+}).await??;
 
-# Async context managers
-async with GitHubClient(token) as client:
-    repos = await client.search_repos(language="python")
+// Bad ✗ — blocking I/O in async context
+pub async fn fetch_data(&self) -> Result<String> {
+    std::fs::read_to_string("file.txt")? // Blocks the runtime!
+}
 ```
 
-### Docstrings (Google-Style)
+### Documentation Comments
 
-**Required for all public functions, classes, and methods:**
+**Required for all public functions, structs, and modules:**
 
-```python
-async def generate_fix(
-    self,
-    finding: Finding,
-    context: FileContext,
-    max_tokens: int = 1000
-) -> Contribution:
-    """Generate a code fix for a finding.
-
-    Uses LLM to generate a targeted fix, validates syntax,
-    and scores quality before returning.
-
-    Args:
-        finding: Issue detected by analyzer.
-        context: File content and surrounding context.
-        max_tokens: Max tokens for LLM response.
-
-    Returns:
-        Contribution with generated code and explanation.
-
-    Raises:
-        GenerationError: If LLM fails or quality < threshold.
-        ValidationError: If generated code has syntax errors.
-
-    Example:
-        >>> finding = Finding(type="missing_docstring", ...)
-        >>> fix = await generator.generate_fix(finding, context)
-        >>> print(fix.code_change)
-    """
+```rust
+/// Generate a code fix for a finding.
+///
+/// Uses LLM to generate a targeted fix, validates syntax,
+/// and scores quality before returning.
+///
+/// # Arguments
+/// * `finding` - Issue detected by analyzer
+/// * `context` - File content and surrounding context
+///
+/// # Errors
+/// Returns `ContribAIError::Generation` if LLM fails or quality < threshold.
+pub async fn generate_fix(
+    &self,
+    finding: &Finding,
+    context: &FileContext,
+) -> Result<Contribution> {
+    // ...
+}
 ```
 
-### Imports Organization
+### Module Documentation
 
-**Follow this import order (PEP 8):**
+**Every module file starts with `//!` doc comments:**
 
-```python
-# 1. Standard library (alphabetical)
-import asyncio
-import logging
-from datetime import datetime
-from typing import TYPE_CHECKING, List, Optional
+```rust
+//! MCP server and client for Model Context Protocol integration.
+//!
+//! - `server`: Exposes ContribAI's GitHub tools via stdio (for Claude/Antigravity).
+//! - `client`: Consumes external MCP servers via stdio subprocess.
 
-# 2. Third-party (alphabetical)
-import httpx
-import pydantic
-from pydantic import BaseModel, Field
+pub mod client;
+pub mod server;
+```
 
-# 3. Local imports (alphabetical)
-from contribai.core.config import Config
-from contribai.core.exceptions import AnalysisError
-from contribai.core.models import Finding, Repository
+### Import Organization
 
-# 4. Type-only imports (avoid circular dependencies)
-if TYPE_CHECKING:
-    from contribai.llm.provider import LLMProvider
+**Follow this import order:**
+
+```rust
+// 1. Standard library
+use std::collections::HashMap;
+use std::sync::Arc;
+
+// 2. Third-party crates (alphabetical)
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use tokio::sync::Semaphore;
+use tracing::{debug, error, info};
+
+// 3. Local crate modules
+use crate::core::config::ContribAIConfig;
+use crate::core::error::{ContribAIError, Result};
+use crate::core::models::{Finding, Repository};
 ```
 
 ### Constants & Enums
 
-**Use constants for magic numbers/strings:**
+```rust
+// Good ✓ — use constants and enums
+const DEFAULT_TIMEOUT_SECS: u64 = 30;
+const MAX_FINDINGS_PER_REPO: usize = 2;
+const QUALITY_THRESHOLD: f64 = 0.6;
 
-```python
-# Good ✓
-DEFAULT_TIMEOUT_SECONDS = 30
-MAX_FINDINGS_PER_REPO = 2
-QUALITY_THRESHOLD = 0.6
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Severity {
+    Critical,
+    High,
+    Medium,
+    Low,
+}
 
-class IssueType(str, Enum):
-    SECURITY = "security"
-    CODE_QUALITY = "code_quality"
-    DOCUMENTATION = "documentation"
-
-# Bad ✗
-if timeout > 30:  # Magic number!
-    ...
-
-if issue_type == "security":  # Magic string!
-    ...
+// Bad ✗ — magic numbers
+if timeout > 30 { ... }
+if severity == "critical" { ... }
 ```
 
-### Logging (NOT Print)
+### Logging (tracing, NOT println!)
 
-**Use logger for all output, never print():**
+```rust
+// Good ✓
+use tracing::{debug, error, info, warn};
 
-```python
-# Good ✓
-import logging
-logger = logging.getLogger(__name__)
+info!(repo = %repo.full_name, "Analyzing repository");
+debug!(findings = findings.len(), "Analysis complete");
+warn!(remaining = rate_limit, "API rate limit approaching");
+error!(error = %e, repo = %repo.full_name, "Failed to create PR");
 
-logger.info(f"Analyzing repo: {repo.full_name}")
-logger.debug(f"Found {len(findings)} issues")
-logger.warning(f"API rate limit approaching: {remaining} requests left")
-logger.error(f"Failed to create PR for {repo}: {error}", exc_info=True)
-
-# Bad ✗
-print(f"Analyzing repo: {repo.full_name}")  # Not logged!
-print(f"Found {len(findings)} issues")
+// Bad ✗
+println!("Analyzing repo: {}", repo.full_name);
 ```
 
 ---
 
 ## Design Patterns
 
-### Pattern 1: Provider/Strategy Pattern
+### Pattern 1: Trait-Based Providers (Strategy)
 
-**Use for extensible LLM providers, analyzers, generators:**
+```rust
+#[async_trait]
+pub trait LlmProvider: Send + Sync {
+    async fn complete(&self, prompt: &str, max_tokens: usize) -> Result<String>;
+    fn name(&self) -> &str;
+}
 
-```python
-class LLMProvider(ABC):
-    """Abstract base for LLM implementations."""
+pub struct GeminiProvider { /* ... */ }
+pub struct OpenAIProvider { /* ... */ }
 
-    @abstractmethod
-    async def complete(self, prompt: str, **kwargs) -> str:
-        """Generate completion."""
+#[async_trait]
+impl LlmProvider for GeminiProvider {
+    async fn complete(&self, prompt: &str, max_tokens: usize) -> Result<String> {
+        // Gemini-specific implementation
+    }
+    fn name(&self) -> &str { "gemini" }
+}
 
-class GeminiProvider(LLMProvider):
-    async def complete(self, prompt: str, **kwargs) -> str:
-        # Gemini-specific implementation
-        ...
-
-class OpenAIProvider(LLMProvider):
-    async def complete(self, prompt: str, **kwargs) -> str:
-        # OpenAI-specific implementation
-        ...
-
-# Factory function
-def create_llm_provider(config: LLMConfig) -> LLMProvider:
-    """Create LLM provider based on config."""
-    if config.provider == "gemini":
-        return GeminiProvider(api_key=config.api_key)
-    elif config.provider == "openai":
-        return OpenAIProvider(api_key=config.api_key)
-    else:
-        raise ValueError(f"Unknown provider: {config.provider}")
+// Factory function
+pub fn create_llm_provider(config: &LlmConfig) -> Box<dyn LlmProvider> {
+    match config.provider.as_str() {
+        "gemini" => Box::new(GeminiProvider::new(config)),
+        "openai" => Box::new(OpenAIProvider::new(config)),
+        _ => panic!("Unknown provider: {}", config.provider),
+    }
+}
 ```
 
 ### Pattern 2: Middleware Chain
 
-**Use for cross-cutting concerns (validation, retry, rate limit, DCO):**
+```rust
+#[async_trait]
+pub trait Middleware: Send + Sync {
+    async fn process(
+        &self,
+        repo: &Repository,
+        next: &dyn Fn(&Repository) -> BoxFuture<Result<PipelineResult>>,
+    ) -> Result<PipelineResult>;
+}
 
-```python
-class Middleware(ABC):
-    @abstractmethod
-    async def process(
-        self,
-        repo: Repository,
-        next_handler: Callable
-    ) -> PipelineResult:
-        """Process repo, then call next middleware."""
+pub struct RateLimitMiddleware { max_prs_per_day: usize }
 
-class RateLimitMiddleware(Middleware):
-    async def process(self, repo: Repository, next_handler: Callable):
-        # Check rate limit
-        if not self.can_process(repo):
-            raise RateLimitError("Daily PR limit exceeded")
-        # Continue to next middleware
-        return await next_handler(repo)
-
-# Apply chain
-pipeline.add_middleware(RateLimitMiddleware())
-pipeline.add_middleware(ValidationMiddleware())
-pipeline.add_middleware(RetryMiddleware())
-result = await pipeline.process(repo)
+#[async_trait]
+impl Middleware for RateLimitMiddleware {
+    async fn process(&self, repo: &Repository, next: /* ... */) -> Result<PipelineResult> {
+        if self.daily_count() >= self.max_prs_per_day {
+            return Err(ContribAIError::RateLimit("Daily PR limit".into()));
+        }
+        next(repo).await
+    }
+}
 ```
 
-### Pattern 3: Event Bus (Observer Pattern)
+### Pattern 3: Event Bus (Observer)
 
-**Emit events for major actions; subscribe for side effects:**
+```rust
+pub struct EventBus {
+    handlers: Vec<Box<dyn Fn(&Event) + Send + Sync>>,
+    jsonl_path: Option<PathBuf>,
+}
 
-```python
-# Define typed event
-@dataclass
-class PRCreated(BaseModel):
-    repo: Repository
-    pr_number: int
-    url: str
-    timestamp: datetime
-
-# Emit event
-event_bus.emit(PRCreated(
-    repo=repo,
-    pr_number=123,
-    url="https://github.com/...",
-    timestamp=datetime.now()
-))
-
-# Subscribe to event
-@event_bus.on(PRCreated)
-async def notify_on_pr(event: PRCreated):
-    await notifier.send(f"PR created: {event.url}")
-
-@event_bus.on(PRCreated)
-async def log_pr(event: PRCreated):
-    logger.info(f"PR #{event.pr_number} for {event.repo.full_name}")
+impl EventBus {
+    pub fn emit(&self, event: Event) {
+        // Notify all handlers
+        for handler in &self.handlers {
+            handler(&event);
+        }
+        // Append to JSONL log
+        if let Some(ref path) = self.jsonl_path {
+            let line = serde_json::to_string(&event).unwrap();
+            // append to file...
+        }
+    }
+}
 ```
 
-### Pattern 4: Pydantic Models for All Data
+### Pattern 4: Serde Models for All Data
 
-**Never use dicts for structured data; use Pydantic models:**
+```rust
+// Good ✓ — serde struct with validation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Finding {
+    pub finding_type: String,
+    pub file_path: String,
+    pub line: usize,
+    pub description: String,
+    pub severity: Severity,
+    #[serde(default)]
+    pub context: String,
+}
 
-```python
-# Good ✓
-class Finding(BaseModel):
-    type: str
-    file: str
-    line: int
-    description: str
-    severity: Literal["critical", "high", "medium", "low"]
-
-    model_config = ConfigDict(
-        validate_assignment=True,
-        frozen=False  # Allow modification
-    )
-
-# Bad ✗
-finding = {
-    "type": "missing_docstring",
-    "file": "app.py",
-    "line": 42,
-    "description": "Missing docstring",
-    "severity": "low"
-}  # No validation, no IDE support
+// Bad ✗ — using HashMap for structured data
+let finding: HashMap<String, String> = HashMap::new();
 ```
 
-### Pattern 5: Dependency Injection
+### Pattern 5: Dependency Injection via Constructors
 
-**Pass dependencies as constructor parameters, not globals:**
+```rust
+// Good ✓
+pub struct CodeAnalyzer {
+    llm: Box<dyn LlmProvider>,
+    github: GitHubClient,
+    config: ContribAIConfig,
+}
 
-```python
-# Good ✓
-class CodeAnalyzer:
-    def __init__(
-        self,
-        llm_provider: LLMProvider,
-        github_client: GitHubClient,
-        config: Config
-    ):
-        self.llm = llm_provider
-        self.github = github_client
-        self.config = config
+impl CodeAnalyzer {
+    pub fn new(
+        llm: Box<dyn LlmProvider>,
+        github: GitHubClient,
+        config: ContribAIConfig,
+    ) -> Self {
+        Self { llm, github, config }
+    }
+}
 
-# Usage: inject at instantiation
-analyzer = CodeAnalyzer(
-    llm_provider=llm,
-    github_client=github,
-    config=config
-)
-
-# Bad ✗
-class CodeAnalyzer:
-    def __init__(self):
-        # Creates its own dependencies (hard to test!)
-        self.llm = create_llm_provider()  # Global state
-        self.github = GitHubClient()
+// Bad ✗ — creating dependencies internally
+impl CodeAnalyzer {
+    pub fn new() -> Self {
+        let llm = create_llm_provider(); // Hard to test!
+        Self { llm }
+    }
+}
 ```
 
 ---
 
 ## Error Handling
 
-### Exception Hierarchy
+### Error Types (thiserror)
 
-**Use custom exceptions from `contribai.core.exceptions`:**
+```rust
+use thiserror::Error;
 
-```python
-# Base exceptions
-class ContribAIError(Exception):
-    """Base exception for all ContribAI errors."""
+#[derive(Debug, Error)]
+pub enum ContribAIError {
+    #[error("Analysis error: {0}")]
+    Analysis(String),
+    #[error("GitHub API error: {0}")]
+    GitHub(String),
+    #[error("LLM error: {0}")]
+    Llm(String),
+    #[error("Config error: {0}")]
+    Config(String),
+    #[error("Database error: {0}")]
+    Database(#[from] rusqlite::Error),
+    #[error("HTTP error: {0}")]
+    Http(#[from] reqwest::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+}
 
-class AnalysisError(ContribAIError):
-    """Analysis phase failed."""
-
-class GenerationError(ContribAIError):
-    """Code generation failed."""
-
-class GitHubError(ContribAIError):
-    """GitHub API operation failed."""
-
-class LLMError(ContribAIError):
-    """LLM provider call failed."""
-
-class ConfigError(ContribAIError):
-    """Configuration error."""
-
-# Usage
-try:
-    await analyzer.analyze(repo)
-except AnalysisError as e:
-    logger.error(f"Analysis failed: {e}", exc_info=True)
-    # Handle gracefully
-except GitHubError as e:
-    logger.warning(f"GitHub API error: {e}")
-    # Retry or skip repo
+pub type Result<T> = std::result::Result<T, ContribAIError>;
 ```
 
-### Try/Except Best Practices
+### Error Handling Best Practices
 
-```python
-# Good ✓
-async def process_repo(repo: Repository) -> Optional[PipelineResult]:
-    """Process a single repo, handling errors gracefully."""
-    try:
-        findings = await analyzer.analyze(repo)
-        contributions = await generator.generate_fixes(findings)
-        prs = await pr_manager.create_prs(repo, contributions)
-        return PipelineResult(repo=repo, prs=prs)
+```rust
+// Good ✓ — use ? operator and map_err
+pub async fn process_repo(&self, repo: &Repository) -> Result<PipelineResult> {
+    let findings = self.analyzer.analyze(repo).await
+        .map_err(|e| ContribAIError::Analysis(format!("Failed for {}: {e}", repo.full_name)))?;
 
-    except AnalysisError as e:
-        logger.error(f"Analysis failed for {repo.full_name}: {e}")
-        return None
+    let contributions = self.generator.generate_fixes(&findings).await?;
+    Ok(PipelineResult { prs: contributions })
+}
 
-    except Exception as e:
-        logger.error(f"Unexpected error processing {repo}: {e}", exc_info=True)
-        return None
-
-# Bad ✗
-try:
-    findings = await analyzer.analyze(repo)
-    # ... more code
-except:  # Catches everything, hard to debug!
-    pass
+// Bad ✗ — silently swallowing errors
+match self.analyzer.analyze(repo).await {
+    Ok(f) => f,
+    Err(_) => vec![], // Lost error context!
+}
 ```
 
 ---
 
 ## Testing Strategy
 
-### Test Structure
+### Co-located Tests
 
-```
-tests/
-├── unit/                   # Isolated module tests
-│   ├── test_analyzer.py
-│   ├── test_generator.py
-│   ├── test_github_client.py
-│   └── ...
-├── integration/            # End-to-end tests
-│   └── test_pipeline.py
-└── conftest.py            # Shared fixtures
-```
+Tests live in the same file as the code they test:
 
-### Unit Test Example
+```rust
+// At bottom of each .rs file
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-```python
-import pytest
-from unittest.mock import AsyncMock, MagicMock
-from contribai.analysis.analyzer import CodeAnalyzer
-from contribai.core.models import Repository, Finding
+    #[test]
+    fn test_quality_threshold() {
+        assert!(QUALITY_THRESHOLD > 0.0);
+        assert!(QUALITY_THRESHOLD <= 1.0);
+    }
 
-@pytest.mark.asyncio
-async def test_analyzer_detects_missing_docstrings():
-    """Test that analyzer detects missing docstrings."""
-    # Arrange
-    repo = Repository(
-        owner="test",
-        name="repo",
-        url="https://github.com/test/repo"
-    )
-
-    mock_llm = AsyncMock()
-    mock_llm.complete.return_value = "Missing docstring on function `foo()`"
-
-    analyzer = CodeAnalyzer(llm_provider=mock_llm)
-
-    # Act
-    findings = await analyzer.analyze(repo)
-
-    # Assert
-    assert len(findings) > 0
-    assert any(f.type == "missing_docstring" for f in findings)
-    mock_llm.complete.assert_called()
-
-@pytest.mark.asyncio
-async def test_analyzer_handles_github_errors():
-    """Test error handling when GitHub API fails."""
-    # Arrange
-    mock_github = AsyncMock()
-    mock_github.get_repo_tree.side_effect = GitHubError("404 Not Found")
-
-    analyzer = CodeAnalyzer(github_client=mock_github)
-
-    # Act & Assert
-    with pytest.raises(GitHubError):
-        await analyzer.analyze(repo)
+    #[tokio::test]
+    async fn test_async_operation() {
+        let result = some_async_fn().await;
+        assert!(result.is_ok());
+    }
+}
 ```
 
-### Test Fixtures (conftest.py)
+### Test Patterns
 
-```python
-import pytest
-from contribai.core.models import Repository, Config
+```rust
+// Parametric testing
+#[test]
+fn test_severity_ordering() {
+    let cases = vec![
+        (Severity::Critical, true),
+        (Severity::Low, false),
+    ];
+    for (severity, expected_high) in cases {
+        assert_eq!(severity.is_high(), expected_high);
+    }
+}
 
-@pytest.fixture
-async def sample_repo():
-    """Fixture providing a sample repository."""
-    return Repository(
-        owner="test",
-        name="repo",
-        url="https://github.com/test/repo",
-        stars=100,
-        language="python"
-    )
-
-@pytest.fixture
-async def config():
-    """Fixture providing test configuration."""
-    return Config.from_yaml("config.example.yaml")
-
-@pytest.fixture
-async def github_client(mocker):
-    """Mock GitHub client."""
-    return mocker.AsyncMock()
+// Testing error conditions
+#[test]
+fn test_empty_command_rejected() {
+    let client = StdioMcpClient::new(&[]);
+    // Client creation succeeds but connect will fail
+    assert!(client.cmd.is_empty());
+}
 ```
 
-### Coverage Requirements
+### Test Commands
 
-- **Minimum:** > 85% (enforced in CI)
-- **Target:** > 90% for critical paths (analysis, generation, PR)
-- **Exclusions:** Logging, CLI arg parsing, trivial getters
-- **Command:** `pytest tests/ -v --cov=contribai --cov-report=html`
+```bash
+# Run all tests
+cargo test
+
+# Run specific module tests
+cargo test mcp::server
+
+# Run with output
+cargo test -- --nocapture
+
+# Run single test
+cargo test test_quality_threshold
+```
+
+**Test Count:** 323 tests across 62 source files
 
 ---
 
 ## Code Quality Tools
 
-### Ruff (Linting & Formatting)
-
-**Run before every commit:**
+### Clippy (Linting)
 
 ```bash
-# Check code style
-ruff check contribai/ tests/
+# Run clippy
+cargo clippy -- -W clippy::all
 
-# Auto-fix issues
-ruff format contribai/ tests/
-
-# Check specific rule
-ruff check --select E501 contribai/  # Line length
+# Fix auto-fixable issues
+cargo clippy --fix
 ```
 
-**Config in `pyproject.toml`:**
-
-```toml
-[tool.ruff]
-line-length = 100
-target-version = "py311"
-
-[tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B"]  # Error, Undefined, Warning, Import, Naming, Upgrade, Bugbear
-ignore = ["E501"]  # Line length (handled by formatter)
-```
-
-### Type Checking (Implicit via Pyright)
-
-**Type hints are validated in CI. Run locally:**
+### Rustfmt (Formatting)
 
 ```bash
-# Check types (if pyright installed)
-pyright contribai/
+# Check formatting
+cargo fmt -- --check
+
+# Auto-format
+cargo fmt
 ```
 
 ### Pre-Commit Checks
 
-**Add to `.git/hooks/pre-commit` (auto-installed):**
-
 ```bash
-#!/bin/bash
-ruff check contribai/ tests/
-pytest tests/ -x  # Stop on first failure
+# Before every commit:
+cargo fmt -- --check && cargo clippy -- -W clippy::all && cargo test
 ```
 
 ---
@@ -552,161 +454,69 @@ pytest tests/ -x  # Stop on first failure
 ### Module Layout
 
 ```
-contribai/module/
-├── __init__.py              # Public API re-exports
-├── main_component.py        # Primary class/functions
-├── sub_component.py         # Supporting classes
-├── constants.py             # Constants & Enums (optional)
-├── exceptions.py            # Module-specific exceptions (optional)
-└── utils.py                 # Helper functions (optional)
+crates/contribai-rs/src/module/
+├── mod.rs              # Public API re-exports + module docs
+├── main_component.rs   # Primary struct/logic
+├── sub_component.rs    # Supporting types
+└── (tests co-located in each file)
 ```
 
-### Public API (__init__.py)
+### Public API (mod.rs)
 
-**Only export what's meant for public use:**
+```rust
+//! Module description.
+pub mod main_component;
+pub mod sub_component;
 
-```python
-# contribai/analysis/__init__.py
-from .analyzer import CodeAnalyzer
-from .strategies import SecurityStrategy, CodeQualityStrategy
-
-__all__ = [
-    "CodeAnalyzer",
-    "SecurityStrategy",
-    "CodeQualityStrategy",
-]
+// Re-export key types
+pub use main_component::PrimaryStruct;
 ```
 
 ### File Size Limits
 
 | Type | Max LOC | Action |
 |------|---------|--------|
-| Python module | 200 | Split into components |
+| Rust module | 200 | Split into sub-modules |
 | Function | 50 | Extract sub-functions |
-| Class | 300 | Split by responsibility |
-| Test file | 500 | Create separate test files |
-| Markdown doc | 800 | Create sub-docs + index |
+| Impl block | 300 | Split by responsibility |
+| Test module | 500 | Still co-located but split logic |
 
 ---
 
 ## Configuration Management
 
-### Pydantic Config Models
+### Serde Config Structs
 
-**All config must use Pydantic with validation:**
+```rust
+#[derive(Debug, Clone, Deserialize)]
+pub struct ContribAIConfig {
+    pub github: GitHubConfig,
+    pub llm: LlmConfig,
+    pub discovery: DiscoveryConfig,
+    pub analysis: AnalysisConfig,
+    pub pipeline: PipelineConfig,
+    pub web: WebConfig,
+}
 
-```python
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Literal
+#[derive(Debug, Clone, Deserialize)]
+pub struct GitHubConfig {
+    pub token: String,
+    #[serde(default = "default_max_prs")]
+    pub max_prs_per_day: usize,
+}
 
-class GitHubConfig(BaseModel):
-    token: str = Field(..., description="GitHub personal access token")
-    max_prs_per_day: int = Field(default=15, ge=1, le=100)
-    rate_limit_margin: int = Field(default=100, ge=0)
-
-class LLMConfig(BaseModel):
-    provider: Literal["gemini", "openai", "anthropic", "ollama", "vertex"]
-    model: str
-    api_key: str
-    temperature: float = Field(default=0.5, ge=0.0, le=2.0)
-    max_tokens: int = Field(default=2000, ge=100, le=10000)
-
-class Config(BaseModel):
-    github: GitHubConfig
-    llm: LLMConfig
-    discovery: DiscoveryConfig
-    analysis: AnalysisConfig
-
-    model_config = ConfigDict(
-        validate_assignment=True,
-        json_schema_extra={
-            "example": {
-                "github": {"token": "ghp_...", "max_prs_per_day": 15},
-                "llm": {"provider": "gemini", "model": "gemini-2.5-flash"},
-            }
-        }
-    )
+fn default_max_prs() -> usize { 15 }
 ```
 
 ### Loading Config
 
-```python
-# Load from YAML
-config = Config.from_yaml("config.yaml")
+```rust
+// From YAML file
+let config: ContribAIConfig = serde_yaml::from_str(&yaml_content)?;
 
-# Load from environment
-config = Config.from_env()
-
-# Load with overrides
-config = Config.from_yaml("config.yaml")
-config.github.max_prs_per_day = 20  # Override
-```
-
----
-
-## Documentation Standards
-
-### Docstring Format (Google-style)
-
-```python
-def process_repo(
-    self,
-    repo: Repository,
-    dry_run: bool = False,
-    timeout: int = 300
-) -> PipelineResult:
-    """Process a repository through the full pipeline.
-
-    Analyzes repo for issues, generates fixes, and creates PRs.
-    Respects all safety limits and middleware constraints.
-
-    Args:
-        repo: Repository to process.
-        dry_run: If True, preview changes without creating PRs.
-        timeout: Max seconds to wait for LLM responses.
-
-    Returns:
-        PipelineResult with all PRs created and outcomes.
-
-    Raises:
-        ConfigError: If config is invalid.
-        GitHubError: If GitHub API calls fail.
-        LLMError: If LLM provider is unavailable.
-
-    Example:
-        >>> repo = Repository(owner="test", name="repo")
-        >>> result = await pipeline.process_repo(repo)
-        >>> print(f"Created {len(result.prs)} PRs")
-        Created 2 PRs
-    """
-```
-
-### README in Every Module
-
-**Create a brief README in each major module:**
-
-```markdown
-# Analysis Module
-
-Detects code issues in repositories using multiple strategies.
-
-## Entry Points
-
-- `CodeAnalyzer.analyze()` — Run all analyzers
-- `SkillLoader.load()` — Load language-specific skills
-
-## Key Classes
-
-- `CodeAnalyzer` — Multi-strategy analysis orchestrator
-- `SecurityStrategy` — Detects security issues
-- `CodeQualityStrategy` — Detects code quality issues
-
-## Example
-
-```python
-analyzer = CodeAnalyzer(llm_provider=llm)
-findings = await analyzer.analyze(repo)
-```
+// Environment variable overrides (CONTRIBAI_* prefix)
+let token = std::env::var("CONTRIBAI_GITHUB_TOKEN")
+    .unwrap_or_else(|_| config.github.token.clone());
 ```
 
 ---
@@ -715,21 +525,21 @@ findings = await analyzer.analyze(repo)
 
 ### Async Concurrency
 
-- **Max concurrent repos:** 3 (via `Semaphore`)
+- **Max concurrent repos:** 3 (via `tokio::sync::Semaphore`)
 - **Max concurrent API calls:** 5 per provider
 - **Timeout defaults:** 30s (GitHub), 60s (LLM)
 
 ### Token Budgeting
 
 - **Per-analysis budget:** 30,000 tokens
-- **Soft limit:** Compress context at 25,000
-- **Hard limit:** Stop processing at 30,000
+- **3-tier compression:** Full code → Signatures → Summary
+- **Language-aware extraction** for 5 languages
 
 ### Database
 
-- **Batch inserts:** 100+ records per transaction
+- **Batch inserts:** Use transactions for multiple writes
 - **Indexes:** On `repo_id`, `pr_number`, `timestamp`
-- **Cleanup:** Archive old records (> 90 days) monthly
+- **spawn_blocking:** All rusqlite calls wrapped
 
 ---
 
@@ -742,23 +552,28 @@ findings = await analyzer.analyze(repo)
 - **Validate inputs** from external sources
 - **Sanitize LLM output** before code execution
 
+### Crypto
+
+- **HMAC-SHA256** for webhook signature verification
+- **Constant-time comparison** for API key auth (timing attack mitigation)
+- Dependencies: `hmac`, `sha2`, `hex` crates
+
 ### Dependencies
 
-- **Audit:** `pip-audit` in CI
+- **Audit:** `cargo audit` in CI
 - **Auto-update:** Dependabot in GitHub
-- **Lock versions:** `pip freeze > requirements.lock`
+- **Lock versions:** `Cargo.lock` committed
 
 ### Access Control
 
 - **GitHub:** Use least-privilege token (only `repo`, `workflow`)
-- **Web API:** Require API key (SHA256 hash, no plaintext)
-- **Webhooks:** Validate HMAC signature
+- **Web API:** Require API key (constant-time comparison)
+- **Webhooks:** Validate HMAC-SHA256 signature
 
 ---
 
 ## Document Metadata
 
 - **Created:** 2026-03-28
-- **Last Updated:** 2026-03-28
-- **Owner:** Technical Lead / Code Reviewer
-- **References:** README.md, CONTRIBUTING.md, .github/workflows/
+- **Last Updated:** 2026-03-31
+- **Version:** 5.0.0 (Rust rewrite)

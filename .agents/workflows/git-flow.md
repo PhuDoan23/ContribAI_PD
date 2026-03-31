@@ -60,7 +60,7 @@ refactor(llm): extract common prompt builder
 docs(readme): add configuration reference
 test(memory): add edge cases for duplicate PR detection
 perf(analyzer): parallelize file content fetching
-chore(deps): bump httpx to 0.28
+chore(deps): bump tokio to 1.x
 ```
 
 ### Creating a PR

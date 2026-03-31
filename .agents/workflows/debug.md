@@ -9,75 +9,55 @@ description: Debugging workflow – systematic approach to finding and fixing bu
 1. **Reproduce the issue**
 Run the failing command with verbose logging:
 ```bash
-contribai <command> -v
+RUST_LOG=debug contribai <command>
 ```
 
-2. **Check the error traceback**
-Read the full traceback. Identify:
-- Which module threw the error
-- The exception type (from `contribai.core.exceptions`?)
+2. **Check the error output**
+Read the full error message and backtrace. Identify:
+- Which module emitted the error
+- The error variant (from `crates/contribai-rs/src/core/error.rs`)
 - The root cause vs. symptom
 
 3. **Enable debug logging**
 // turbo
 ```bash
-python -c "
-import logging
-logging.basicConfig(level=logging.DEBUG)
-# Then run the problematic code
-"
+RUST_LOG=contribai=debug,contribai::github=trace contribai <command>
+```
+Use `RUST_BACKTRACE=1` for full panic backtraces:
+```bash
+RUST_BACKTRACE=1 RUST_LOG=debug contribai <command>
 ```
 
 4. **Run specific test in debug mode**
 // turbo
 ```bash
-pytest tests/ -v -s --log-cli-level=DEBUG -k "test_name"
+cargo test --manifest-path crates/contribai-rs/Cargo.toml test_name -- --nocapture
 ```
 
 5. **Common debugging patterns**
 
 ### GitHub API issues
-```python
-# Check rate limit
-import asyncio
-from contribai.github.client import GitHubClient
-async def check():
-    client = GitHubClient(token="ghp_...")
-    rl = await client.check_rate_limit()
-    print(rl)
-    await client.close()
-asyncio.run(check())
+```bash
+# Check rate limit via CLI
+contribai status
+
+# Or inspect with curl
+curl -H "Authorization: Bearer $CONTRIBAI_GITHUB_TOKEN" \
+  https://api.github.com/rate_limit
 ```
 
 ### LLM issues
-```python
-# Test LLM directly
-import asyncio
-from contribai.core.config import load_config
-from contribai.llm.provider import create_llm_provider
-async def test():
-    config = load_config()
-    llm = create_llm_provider(config.llm)
-    response = await llm.complete("Hello, respond with 'OK'")
-    print(f"Response: {response}")
-    await llm.close()
-asyncio.run(test())
+```bash
+# Test LLM config directly
+RUST_LOG=contribai::llm=debug contribai analyze https://github.com/some-repo --dry-run
 ```
 
 ### Memory/DB issues
-```python
-# Check memory DB
-import asyncio
-from contribai.orchestrator.memory import Memory
-async def check():
-    mem = Memory("~/.contribai/memory.db")
-    await mem.init()
-    stats = await mem.get_stats()
-    print(stats)
-    prs = await mem.get_prs()
-    print(f"PRs: {len(prs)}")
-    await mem.close()
-asyncio.run(check())
+```bash
+# Inspect SQLite DB directly
+sqlite3 ~/.contribai/memory.db ".tables"
+sqlite3 ~/.contribai/memory.db "SELECT COUNT(*) FROM pull_requests;"
+sqlite3 ~/.contribai/memory.db "SELECT * FROM pull_requests ORDER BY created_at DESC LIMIT 5;"
 ```
 
 6. **Fix the bug**
@@ -89,7 +69,7 @@ asyncio.run(check())
 7. **Verify no regressions**
 // turbo
 ```bash
-pytest tests/ -v --tb=short
+cargo test --manifest-path crates/contribai-rs/Cargo.toml
 ```
 
 8. **Commit the fix**
@@ -103,7 +83,7 @@ git commit -m "fix(<module>): <description of fix>"
 | Symptom | Likely Cause | Solution |
 |---------|-------------|----------|
 | `RateLimitError` | GitHub API quota exceeded | Wait for reset, reduce `max_repos_per_run` |
-| `LLMRateLimitError` | LLM API quota exceeded | Switch provider, wait, or reduce requests |
+| `LlmRateLimitError` | LLM API quota exceeded | Switch provider, wait, or reduce requests |
 | `ConfigError` | Invalid config.yaml | Check YAML syntax, compare with `config.example.yaml` |
-| `GitHubAPIError 404` | Repo not found or private | Verify URL, check token permissions |
-| `LLMError` | API key invalid or wrong model | Verify API key and model name in config |
+| `GitHubApiError(404)` | Repo not found or private | Verify URL, check token permissions |
+| `LlmError` | API key invalid or wrong model | Verify API key and model name in config |
